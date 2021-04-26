@@ -1,15 +1,13 @@
 from parcels import DiffusionUniformKh, FieldSet, ParticleSet, Variable, JITParticle, AdvectionRK4,AdvectionDiffusionM1, plotTrajectoriesFile
 import numpy as np
-import math
 from datetime import timedelta
 from operator import attrgetter
-from hypernav.utilities.data_parse import raw_base_file, processed_base_file
+from HyperNav.Utilities.Data.data_parse import raw_base_file, processed_base_file
 from netCDF4 import Dataset
-from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
-from transition_matrix.makeplots.plot_utils import cartopy_setup
+from TransitionMatrix.Utilities.Plot.plot_utils import cartopy_setup
 from geopy import distance
-from data_save_utilities.depth.depth_utilities import PACIOOS as Depth
+from GeneralUtilities.Data.depth.depth_utilities import PACIOOS as Depth
 from parcels import ParcelsRandom as random
 import os
 

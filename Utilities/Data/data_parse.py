@@ -3,7 +3,7 @@ import fnmatch
 import os
 from netCDF4 import Dataset 
 import datetime
-from compute_utilities.list_utilities import flat_list
+from GeneralUtilities.Compute.list import flat_list
 
 raw_base_file = '/Users/pchamberlain/Data/Raw/PACIOOS/february/'
 processed_base_file = '/Users/pchamberlain/Data/Processed/PACIOOS/'
