@@ -1,15 +1,20 @@
 import datetime
 from pydap.client import open_url
 import numpy as np
-from compute_utilities.list_utilities import find_nearest
+from GeneralUtilities.Compute.list import find_nearest
 from parcels import DiffusionUniformKh, FieldSet, ParticleSet, Variable, JITParticle, AdvectionRK4,AdvectionDiffusionM1, plotTrajectoriesFile
-from hypernav.run_parcels import ArgoVerticalMovement700,ArgoVerticalMovement600,ArgoVerticalMovement500,ArgoVerticalMovement400,ArgoVerticalMovement300,ArgoVerticalMovement200,ArgoVerticalMovement100,ArgoVerticalMovement50,ArgoParticle
-from hypernav.file_download.float_position import return_float_pos_dict
-from data_save_utilities.depth.depth_utilities import PACIOOS as Depth
-from transition_matrix.makeplots.plot_utils import cartopy_setup
+from HyperNav.Utilities.Compute.run_parcels import ArgoVerticalMovement700,ArgoVerticalMovement600,ArgoVerticalMovement500,ArgoVerticalMovement400,ArgoVerticalMovement300,ArgoVerticalMovement200,ArgoVerticalMovement100,ArgoVerticalMovement50,ArgoParticle
+from HyperNav.Utilities.Data.float_position import return_float_pos_dict
+from GeneralUtilities.Data.depth.depth_utilities import PACIOOS as Depth
+from TransitionMatrix.Utilities.Plot.plot_utils import cartopy_setup
 import matplotlib.pyplot as plt
+from netCDF4 import Dataset
+from HyperNav.Utilities.Data.__init__ import ROOT_DIR
+from GeneralUtilities.Filepath.instance import FilePathHandler
 
-filename = 'Uniform_out.nc'
+
+
+file_handler = FilePathHandler(ROOT_DIR,'PACIOOS')
 
 def add_list(coord_half):
     holder = [coord_half + dummy for dummy in np.random.normal(scale=.1,size=particle_num)]
@@ -118,6 +123,55 @@ class ReturnWeather(DatasetOpenAndParse):
 		,self.lower_lat_idx:self.higher_lat_idx
 		,self.lower_lon_idx:self.higher_lon_idx].data[0]
 
+class ParticleDataset(Dataset):
+
+	def time_idx(self,timedelta):
+		time_list = self.variables['time'][:][0,:].tolist()
+		time_list = [datetime.timedelta(seconds=(x-time_list[0])) for x in time_list]
+		return time_list.index(timedelta)
+
+	def total_coords(self):
+		return (self.variables['lat'][:],self.variables['lon'][:])
+
+	def get_cloud_snapshot(self,timedelta):
+		time_idx = self.time_idx(timedelta)
+		lats,lons = self.total_coords()
+		return (lats[:,time_idx],lons[:,time_idx])
+
+	def get_cloud_center(self,timedelta):
+		lats,lons = self.get_cloud_snapshot(timedelta)
+		lat_center = lats.mean()
+		lat_std = lats.std()
+		lon_center = lons.mean()
+		lon_std = lons.std()
+		return (lat_center,lon_center,lat_std,lon_std)
+
+	def get_depth_snapshot(self,timedelta):
+		depth = Depth()
+		lats,lons = self.get_cloud_snapshot(timedelta)
+		return [depth.return_z(x) for x in zip(lats,lons)]
+
+	def percentage_aground(self,depth_level):
+		depth = Depth()
+		(ax,fig) = cartopy_setup(nc,float_pos_dict)
+		XX1,YY1 = np.meshgrid(depth.x,depth.y)
+		cs = plt.contour(XX1,YY1,depth.z,[-1*depth_level-0.1*depth_level])
+		paths = cs.collections[0].get_paths()
+		lat,lon = self.total_coords()
+		cloud_mean_tuple = (lat.mean(),lon.mean())
+		problem_idxs = []
+		for k,path in enumerate(paths):
+			mean_path_tuple = (path.vertices[:,1].mean(),path.vertices[:,0].mean())
+			cloud_to_path_dist = geopy.distance.GreatCircleDistance(mean_path_tuple,cloud_mean_tuple).nm
+			if cloud_to_path_dist>90: #computationally efficient way of not computing impossible paths
+				continue
+			print(k)
+			truth_dummy = path.contains_points(list(zip(lon.flatten(),lat.flatten())))
+			row_idx,dummy = np.where(truth_dummy.reshape(lat.shape))
+			problem_idxs+=row_idx.tolist()
+		problem_idxs = np.unique(problem_idxs)
+		return np.unique(problem_idxs).shape[0]/lat.shape[0] #number of problem floats/number of total floats
+
 
 def create_prediction():
 	float_pos_dict = return_float_pos_dict()
@@ -128,22 +182,24 @@ def create_prediction():
 	fieldset.add_constant('Kh_meridional',K_bar)
 	fieldset.add_constant('Kh_zonal',K_bar)
 
-	# kernels = ArgoVerticalMovement + 
-
 	for vert_move,drift_depth in zip([ArgoVerticalMovement700,ArgoVerticalMovement600,ArgoVerticalMovement500,ArgoVerticalMovement400,ArgoVerticalMovement300,ArgoVerticalMovement200,ArgoVerticalMovement100,ArgoVerticalMovement50],[700,600,500,400,300,200,100,50]):
 
 		testParticles = get_test_particles(float_pos_dict,uv.dimensions['time'][0])
 		kernels = vert_move + testParticles.Kernel(AdvectionRK4)
 		dt = 15 #15 minute timestep
-		output_file = testParticles.ParticleFile(name=filename,
-		                                         outputdt=datetime.timedelta(minutes=dt))
+		output_file = testParticles.ParticleFile(name=file_handler.tmp_file('Uniform_out.nc'),
+			outputdt=datetime.timedelta(minutes=dt))
 		testParticles.execute(kernels,
 		                      runtime=datetime.timedelta(days=3),
 		                      dt=datetime.timedelta(minutes=dt),
 		                      output_file=output_file,)
 		output_file.export()
 		output_file.close()
-		plot_prediction(drift_depth)
+		plot_total_prediction(drift_depth)
+		plot_snapshot_prediction(drift_depth)
+		nc = ParticleDataset(file_handler.tmp_file('Uniform_out.nc'))
+		depths = nc.get_depth_snapshot(timedelta=datetime.timedelta(days=2))
+		[depths]
 
 
 def cartopy_setup(nc,float_pos_dict):
@@ -173,14 +229,12 @@ def cartopy_setup(nc,float_pos_dict):
 	gl.ylabels_right = False	
 	return ax,fig
 
-def plot_prediction(depth_level):
-	from netCDF4 import Dataset
+def plot_total_prediction(depth_level):
 	float_pos_dict = return_float_pos_dict()
-	nc = Dataset(filename)
+	nc = ParticleDataset(file_handler.tmp_file('Uniform_out.nc'))
 	depth = Depth()
 
 	(ax,fig) = cartopy_setup(nc,float_pos_dict)
-
 	XX1,YY1 = np.meshgrid(depth.x,depth.y)
 	plt.contour(XX1,YY1,depth.z,[-1*depth_level],colors=('k',),linewidths=(7,),zorder=4,label='Drift Depth Contour')
 	plt.contourf(XX1,YY1,np.ma.masked_greater(depth.z/1000.,0),zorder=3)
@@ -194,13 +248,34 @@ def plot_prediction(depth_level):
 	plt.scatter(float_pos_dict['lon'],float_pos_dict['lat'],marker='x',c='k',linewidth=10,s=500,zorder=6,label='Location')
 	plt.legend()
 
-	plt.savefig('bathy_plot_'+str(depth_level))
+	plt.savefig(file_handler.out_file('bathy_plot_total_'+str(depth_level)))
 	plt.close()
 
+def plot_snapshot_prediction(depth_level):
+	float_pos_dict = return_float_pos_dict()
+	nc = ParticleDataset(file_handler.tmp_file('Uniform_out.nc'))
+	depth = Depth()
+
+	for time in [datetime.timedelta(days=x) for x in [1,2,3]]:
+		(ax,fig) = cartopy_setup(nc,float_pos_dict)
+		XX1,YY1 = np.meshgrid(depth.x,depth.y)
+		plt.contour(XX1,YY1,depth.z,[-1*depth_level],colors=('k',),linewidths=(7,),zorder=4,label='Drift Depth Contour')
+		plt.contourf(XX1,YY1,np.ma.masked_greater(depth.z/1000.,0),zorder=3)
+		plt.colorbar(label = 'Depth (km)')
 
 
+		lats,lons = nc.get_cloud_snapshot(time)
+		lat_center,lon_center,lat_std,lon_std = nc.get_cloud_center(time)
+		plt.scatter(lons.tolist(),lats.tolist(),c='m',s=2,zorder=5,label='Prediction')
+		plt.scatter(float_pos_dict['lon'],float_pos_dict['lat'],marker='x',c='k',linewidth=6,s=250,zorder=6,label='Location')
+		plt.scatter(lon_center,lat_center,marker='x',c='b',linewidth=6,s=250,zorder=6,label='Mean Prediction')
+
+		plt.legend()
+
+		plt.savefig(file_handler.out_file('bathy_plot_days-'+str(time.days)+'_depth-'+str(int(depth_level))))
+		plt.close()	
 
 
-	pword = 'n5vkJ?lw\EmdidlJ'
-	server_ip = '204.197.4.164'
+pword = 'n5vkJ?lw\EmdidlJ'
+server_ip = '204.197.4.164'
 	
