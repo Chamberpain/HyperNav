@@ -151,26 +151,42 @@ class ParticleDataset(Dataset):
 		lats,lons = self.get_cloud_snapshot(timedelta)
 		return [depth.return_z(x) for x in zip(lats,lons)]
 
+	def within_bounds(self,position):
+		bnds_list = []
+		for ii in [1,2,3]:
+			lats,lons = self.get_cloud_snapshot(datetime.timedelta(days=ii))
+			dist_list = [geopy.distance.GreatCircleDistance(float_pos,position).nm>50 for float_pos in zip(lats,lons)]
+			bnds_list.append(np.sum(dist_list)/len(lats)*100)
+		return bnds_list
+
+	def dist_list(self,float_dict):
+		float_pos = (float_dict['lat'],float_dict['lon'])
+		dist_list = []
+		for ii in [1,2,3]:
+			lat,lon,dummy,dummy = self.get_cloud_center(datetime.timedelta(days=ii))
+			dist_list.append(geopy.distance.GreatCircleDistance(float_pos,(lat,lon)).nm)
+		return dist_list
+
 	def percentage_aground(self,depth_level):
 		depth = Depth()
 		(ax,fig) = cartopy_setup(nc,float_pos_dict)
 		XX1,YY1 = np.meshgrid(depth.x,depth.y)
 		cs = plt.contour(XX1,YY1,depth.z,[-1*depth_level-0.1*depth_level])
+		plt.close()
 		paths = cs.collections[0].get_paths()
 		lat,lon = self.total_coords()
 		cloud_mean_tuple = (lat.mean(),lon.mean())
 		problem_idxs = []
 		for k,path in enumerate(paths):
-			mean_path_tuple = (path.vertices[:,1].mean(),path.vertices[:,0].mean())
+			mean_path_tuple = (path.vertices[:,1].mean(),path.vertices[:,0].mean()) #path outputs are in x,y format
 			cloud_to_path_dist = geopy.distance.GreatCircleDistance(mean_path_tuple,cloud_mean_tuple).nm
 			if cloud_to_path_dist>90: #computationally efficient way of not computing impossible paths
 				continue
-			print(k)
 			truth_dummy = path.contains_points(list(zip(lon.flatten(),lat.flatten())))
 			row_idx,dummy = np.where(truth_dummy.reshape(lat.shape))
 			problem_idxs+=row_idx.tolist()
 		problem_idxs = np.unique(problem_idxs)
-		return np.unique(problem_idxs).shape[0]/lat.shape[0] #number of problem floats/number of total floats
+		return (np.unique(problem_idxs).shape[0]/lat.shape[0])*100 #number of problem floats/number of total floats
 
 
 def create_prediction():
@@ -181,7 +197,13 @@ def create_prediction():
 	K_bar = 0.000000000025
 	fieldset.add_constant('Kh_meridional',K_bar)
 	fieldset.add_constant('Kh_zonal',K_bar)
+    kona_pos = (19.6400,-155.9969)
+    lahaina_pos = (20.8700,-156.68)
 
+	aground_list = []
+	lahaina_list = []
+	kona_list = []
+	float_move_list = []
 	for vert_move,drift_depth in zip([ArgoVerticalMovement700,ArgoVerticalMovement600,ArgoVerticalMovement500,ArgoVerticalMovement400,ArgoVerticalMovement300,ArgoVerticalMovement200,ArgoVerticalMovement100,ArgoVerticalMovement50],[700,600,500,400,300,200,100,50]):
 
 		testParticles = get_test_particles(float_pos_dict,uv.dimensions['time'][0])
@@ -195,11 +217,44 @@ def create_prediction():
 		                      output_file=output_file,)
 		output_file.export()
 		output_file.close()
-		plot_total_prediction(drift_depth)
-		plot_snapshot_prediction(drift_depth)
+		# plot_total_prediction(drift_depth)
+		# plot_snapshot_prediction(drift_depth)
 		nc = ParticleDataset(file_handler.tmp_file('Uniform_out.nc'))
-		depths = nc.get_depth_snapshot(timedelta=datetime.timedelta(days=2))
-		[depths]
+		aground_list.append((nc.percentage_aground(depth_level = drift_depth),drift_depth))
+		lahaina_list.append((nc.within_bounds(lahaina_pos),drift_depth))
+		kona_list.append((nc.within_bounds(kona_pos),drift_depth))
+		float_move_list.append((nc.dist_list(float_pos_dict),drift_depth))
+
+	plt.bar(depth,aground_percent,width=25)
+	plt.ylabel('Grounding Percentage')
+	plt.xlabel('Depth')
+	plt.savefig(file_handler.out_file('grounding_percentage'))
+	plt.close()
+
+	def plot_position(pos_list):
+		for percent_outside,depth in pos_list:
+			plt.plot([1,2,3],percent_outside,label=(str(depth)+'m Depth'))
+		plt.legend()
+		plt.xlabel('Days')
+
+
+	plt.figure()
+	plot_position(lahaina_list)
+	plt.ylabel('Percent of Floats Outside Operations Area')
+	plt.savefig(file_handler.out_file('lahaina_percentage'))
+	plt.close()
+
+	plt.figure()
+	plot_position(kona_list)
+	plt.ylabel('Percent of Floats Outside Operations Area')
+	plt.savefig(file_handler.out_file('kona_percentage'))
+	plt.close()
+
+	plt.figure()
+	plot_position(float_move_list)
+	plt.ylabel('Distance from Starting Point Floats Move (nm)')
+	plt.savefig(file_handler.out_file('float_dist'))
+	plt.close()
 
 
 def cartopy_setup(nc,float_pos_dict):
@@ -247,7 +302,6 @@ def plot_total_prediction(depth_level):
 	plt.scatter(nc['lon'][:],nc['lat'][:],c=particle_color,cmap='PuRd',s=2,zorder=5)
 	plt.scatter(float_pos_dict['lon'],float_pos_dict['lat'],marker='x',c='k',linewidth=10,s=500,zorder=6,label='Location')
 	plt.legend()
-
 	plt.savefig(file_handler.out_file('bathy_plot_total_'+str(depth_level)))
 	plt.close()
 
