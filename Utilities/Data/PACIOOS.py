@@ -189,8 +189,7 @@ class ParticleDataset(Dataset):
 		return (np.unique(problem_idxs).shape[0]/lat.shape[0])*100 #number of problem floats/number of total floats
 
 
-def create_prediction():
-	float_pos_dict = return_float_pos_dict()
+def create_prediction(float_pos_dict,vert_move,drift_depth):
 	uv = ReturnUV(float_pos_dict)
 	fieldset = FieldSet.from_data(uv.data, uv.dimensions,transpose=False)
 	fieldset.mindepth = uv.dimensions['depth'][0]
@@ -204,26 +203,76 @@ def create_prediction():
 	lahaina_list = []
 	kona_list = []
 	float_move_list = []
-	for vert_move,drift_depth in zip([ArgoVerticalMovement700,ArgoVerticalMovement600,ArgoVerticalMovement500,ArgoVerticalMovement400,ArgoVerticalMovement300,ArgoVerticalMovement200,ArgoVerticalMovement100,ArgoVerticalMovement50],[700,600,500,400,300,200,100,50]):
 
-		testParticles = get_test_particles(float_pos_dict,uv.dimensions['time'][0])
-		kernels = vert_move + testParticles.Kernel(AdvectionRK4)
-		dt = 15 #15 minute timestep
-		output_file = testParticles.ParticleFile(name=file_handler.tmp_file('Uniform_out.nc'),
-			outputdt=datetime.timedelta(minutes=dt))
-		testParticles.execute(kernels,
-		                      runtime=datetime.timedelta(days=3),
-		                      dt=datetime.timedelta(minutes=dt),
-		                      output_file=output_file,)
-		output_file.export()
-		output_file.close()
-		# plot_total_prediction(drift_depth)
-		# plot_snapshot_prediction(drift_depth)
+	testParticles = get_test_particles(float_pos_dict,uv.dimensions['time'][0])
+	kernels = vert_move + testParticles.Kernel(AdvectionRK4)
+	dt = 15 #15 minute timestep
+	output_file = testParticles.ParticleFile(name=file_handler.tmp_file('Uniform_out.nc'),
+		outputdt=datetime.timedelta(minutes=dt))
+	testParticles.execute(kernels,
+	                      runtime=datetime.timedelta(days=3),
+	                      dt=datetime.timedelta(minutes=dt),
+	                      output_file=output_file,)
+	output_file.export()
+	output_file.close()
+
+def historical_prediction():
+	from HyperNav.Utilities.Data.previous_traj_parse import gps_42_file,mission_42_file,NavisParse
+	parser = NavisParse(gps_42_file,mission_42_file,start_idx = 3)
+	diff_list = []
+	while looper:
+		try: 
+			float_pos_dict,dummy = parser.increment_profile()
+			idx = parser.index
+			create_prediction(float_pos_dict,ArgoVerticalMovement700,700)
+			nc = ParticleDataset(file_handler.tmp_file('Uniform_out.nc'))
+			for time in [datetime.timedelta(days=x) for x in [1,2,3]]:
+				(ax,fig) = cartopy_setup(nc,float_pos_dict)
+				lats,lons = nc.get_cloud_snapshot(time)
+				lat_center,lon_center,lat_std,lon_std = nc.get_cloud_center(time)
+				plt.scatter(lons.tolist(),lats.tolist(),c='m',s=2,zorder=5,label='Prediction')
+				plt.scatter(float_pos_dict['lon'],float_pos_dict['lat'],marker='x',c='k',linewidth=6,s=250,zorder=6,label='Location')
+				plt.scatter(lon_center,lat_center,marker='x',c='b',linewidth=6,s=250,zorder=6,label='Mean Prediction')
+				float_pos_dict_future,dummy = parser.increment_profile()
+				plt.scatter(float_pos_dict_future['lon'],float_pos_dict_future['lat'],marker='o',c='k',linewidth=6,s=250,zorder=6,label=('Actual '+str(time)+' Day Later'))
+				plt.legend()
+				plt.savefig(file_handler.out_file('historical_day_'+str(idx)+'_prediction_'+str(time)))
+				plt.close()
+				lat_center,lon_center,lat_std,lon_std = nc.get_cloud_center(time)
+
+				float_future_pos = (float_pos_dict_future['lat'],float_pos_dict_future['lon'])
+				mean_prediction_pos = (lat_center,lon_center)
+				diff_list.append((GreatCircleDistance(float_future_pos,mean_prediction_pos),time))
+			parser.index = idx
+		except KeyError:
+			looper = False
+		distance_error_list,days = zip(diff_list)
+		mean_list = []
+		std_list = []
+		for day in np.sort(np.unique(days)):
+			tmp_array = np.array(distance_error)[np.array(days)==day]
+			mean_list.append(tmp_array.mean())
+			std_list.append(tmp_array.std())
+		plt.plot(np.sort(np.unique(days)),mean_list)
+		plt.fill_between(days,np.array(mean_list)-np.array(std_list),np.array(mean_list)+np.array(std_list),color='red',alpha=0.2)
+
+
+
+def multi_depth_prediction():
+	float_pos_dict = return_float_pos_dict()
+	for vert_move,drift_depth in zip([ArgoVerticalMovement700,ArgoVerticalMovement600,ArgoVerticalMovement500,ArgoVerticalMovement400,ArgoVerticalMovement300,ArgoVerticalMovement200,ArgoVerticalMovement100,ArgoVerticalMovement50],[700,600,500,400,300,200,100,50]):
+		percent_aground,percent_lahaina_in_bounds,percent_kona_in_bounds,float_move = create_prediction(float_pos_dict,vert_move,drift_depth)
+		plot_total_prediction(drift_depth)
+		plot_snapshot_prediction(drift_depth)
 		nc = ParticleDataset(file_handler.tmp_file('Uniform_out.nc'))
-		aground_list.append((nc.percentage_aground(depth_level = drift_depth),drift_depth))
-		lahaina_list.append((nc.within_bounds(lahaina_pos),drift_depth))
-		kona_list.append((nc.within_bounds(kona_pos),drift_depth))
-		float_move_list.append((nc.dist_list(float_pos_dict),drift_depth))
+		percent_aground = nc.percentage_aground(depth_level = drift_depth)
+		percent_lahaina_in_bounds = nc.within_bounds(lahaina_pos)
+		percent_kona_in_bounds = nc.within_bounds(kona_pos)
+		float_move = nc.dist_list(float_pos_dict)
+		aground_list.append((percent_aground,drift_depth))
+		lahaina_list.append((percent_lahaina_in_bounds,drift_depth))
+		kona_list.append((percent_kona_in_bounds,drift_depth))
+		float_move_list.append((float_move,drift_depth))
 
 	plt.bar(depth,aground_percent,width=25)
 	plt.ylabel('Grounding Percentage')
