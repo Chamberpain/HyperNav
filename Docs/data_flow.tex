@@ -82,21 +82,27 @@ La Jolla, California}
 %% Necessary!
 \maketitle
 \section{Introduction}
-The Hypernav project proposes to seed the worlds oceans with Lagrangian hyper-spectral cameras based on the Argo platform \citep{roemmich2019future}, and offers an innovative means to validate the PACE satellite \citep{frouin2019atmospheric}. Floats built on the Argo platform are not Lagrangian drifters in the truest sense: argo floats are equipped with a small buoyancy engine which allows them to profile the water column while collecting ocean measurements, surface and broadcast those measurements, and then descend and drift at the so called "parking depth". Typical Core Argo floats drift at 1000 meters for 10 days before profiling. Because of operational limitations, Hypernav floats must drift shallower than 700 meters and surface daily. Determination of the ideal parking depth is the goal this study. Previous ocean color validation experiments have deployed instrumented moorings \citep{clark2003moby} to measure and transmit optical properties of the ocean. Instrumented moorings are typically expensive, difficult to maintain, and, because of their vastly greater size and weight, require complicated logistics to deploy globally; Lagrangian drifters on the other hand are typically less expensive than moorings and can be deployed by one or two people from the deck of almost any ship. Because of this scalability, proposals have been made to deploy a distributed network of Hypernav drifters globally. This global array will hypothetically validate ocean color measurements in many different climates and bioms as opposed to the one or two validation moorings that have been used to validate previous generations of ocean color satellites. This is not to say that Lagrangian drifters do not suffer from their own drawbacks. Drifters inherently move about with ocean currents; this is problematic for two reasons: firstly, instrumented drifters are fragile and cannot survive groundings. Care must be taken to navigate drifters at depths such that they avoid the ocean floor. Secondly, the regions of ideal satellite validations are relatively small. If Hypernav floats drift too far, their observations will not be useful for satellite validation. To address these challenges, we combine 2 technologies - the PACIOOS 4D prediction of currents in the Hawaiian Islands \citep{PacIOOS}, and the software package "Ocean Parcels" (Probably A Really Computationally Efficient Lagrangian Simulator)\citep{delandmeter2019parcels,Parcels} - to produce an almost real time prediction of float trajectories at 8 depth levels. Based on these predictions, deployed hypernav floats can be reprogrammed to drift at an ideal depth during incremental stages of its mission mission. The ideal park depth for this study is the depth at which the float has simultaneously the lowest probability of grounding and the highest probability of staying the required satellite calibration study area. The software package presented in this work is configured for the Hawaiian Islands, but this technique could be generally applied to any mission using the Argo platform. %need to include regional plot with float tracks
+The Hypernav project proposes to seed the worlds oceans with Lagrangian hyper-spectral cameras based on the Argo platform \citep{roemmich2019future}, and offers an innovative means to validate the PACE satellite \citep{frouin2019atmospheric}. Floats built on the Argo platform are not Lagrangian drifters in the truest sense: argo floats are equipped with a small buoyancy engine which allows them to profile the water column while collecting ocean measurements, surface and broadcast those measurements, and then descend and drift at the so called "parking depth". Typical Core Argo floats drift at 1000 meters for 10 days before profiling. Because of operational limitations, Hypernav floats must drift shallower than 700 meters and surface daily. Determination of the ideal parking depth is the goal this study. Previous ocean color validation experiments have deployed instrumented moorings \citep{clark2003moby} to measure and transmit optical properties of the ocean. Instrumented moorings are typically expensive, difficult to maintain, and, because of their vastly greater size and weight, require complicated logistics to deploy globally; Lagrangian drifters on the other hand are typically less expensive than moorings and can be deployed by one or two people from the deck of almost any ship. Because of this scalability, proposals have been made to deploy a distributed network of Hypernav drifters globally. This global array will hypothetically validate ocean color measurements in many different climates and bioms as opposed to the one or two validation moorings that have been used to validate previous generations of ocean color satellites. This is not to say that Lagrangian drifters do not suffer from their own drawbacks. Drifters inherently move about with ocean currents; this is problematic for two reasons: firstly, instrumented drifters are fragile and cannot survive groundings. Care must be taken to navigate drifters at depths such that they avoid the ocean floor. Secondly, the regions of ideal satellite validations are relatively small. If Hypernav floats drift too far, their observations will not be useful for satellite validation. To address these challenges, we combine 2 technologies - the PACIOOS 4D prediction of currents in the Hawaiian Islands \citep{PacIOOS}, and the software package "Ocean Parcels" (Probably A Really Computationally Efficient Lagrangian Simulator)\citep{delandmeter2019parcels,Parcels} - to produce an almost real time prediction of float trajectories at 8 depth levels. Based on these predictions, deployed hypernav floats can be reprogrammed to drift at an ideal depth during incremental stages of its mission mission. The ideal park depth for this study is the depth at which the float has simultaneously the lowest probability of grounding and the highest probability of staying the required satellite calibration study area. The software package presented in this work is configured for the Hawaiian Islands as used in the June 2021 Hawaiian Hypernav campaign, but this technique could be generally applied to any mission using the Argo platform. %need to include regional plot with float tracks
 
 \section{Data}
 The primary dataset used to create our predictions is the PACIOOS 4D ocean current prediction \citep{PacIOOS} and reanalysis \cite{partridge2019reanalysis}.
 %include description of the way this model is created. 
-For float trajectory prediction, data was downloaded from PACIOOS servers in a 2 degree box around the considered float position and 5 days in advance. 
+For float trajectory prediction, data was downloaded from PACIOOS servers in a 2$^\circ$ x 2$^\circ$ box centered around the considered float position and 5 days in advance. 
+
+We use high resolution 0.01$^\circ$ x 0.01$^\circ$ PACIOOS bathymetry for all grounding calculations.
 
 Additionally, trajectories from Navis float 0042,xxx,xxx, and xxx %navis floats deployed during experiment
 were used to validate the method. 
 
 
 \section{Methods}
-The method we imploy in these calculations is inherently quite simple and is 
+The method we employ in these calculations is abstractly as simple as basic home plumbing. We attach the output of the PACIOOS model to the input of the Ocean Parcels model. Of course, as with all things, there are some subtleties. 
+
+To simulate the effect of the Argo buoyancy engine profiling in the water column, we specify a custom behavior for all particles in the advection scheme. Particles are programmed to sink from the surface to predefined 8 park depths - 700 m, 600 m, 500 m, 400 m, 300 m, 200 m, 100 m, and 50 m. Particles stay at the park depth until 24 hours after the deployment time, at which point they rise to the surface. Vertical motions on both the ascent and descent are 0.075 $m s^{-1}$. Once the particle reaches the surface, it stays there for 2 hours. This simulates the time transmission surface interval. The true time that a float spends at the surface is variable and depends on the latency of satellite communications. We choose a 2 hour surface interval because this is the approximate mean of surface intervals during past campaigns. Finally, after the surface interval, the float descends to the park depth to wait for the next profile. This particle behavior is combined with a Runga Kutta 4 advection scheme with isotropic diffusivity of 0.000000000025. 
 
 \section{Results}
+Predictions are made for both a historical precursor to the Hypernav campaign and for the June 2021 Hawaiian Hypernav field campaign. 
+
 
 \section{Discussion}
 
@@ -185,12 +191,24 @@ Output of model results and code are included as a supplement. Ocean Parcels sof
 %% Important!
 %\appendcaption{<appendix letter and number>}{<caption>} 
 %must be used for figures and tables in appendixes, e.g.,
-%
+
+%Figures:
+%Plot of hawaiian islands with mean June currents from reanalysis and trajectories of considered floats
+%plot of predicted vs. actual for navis 42 w/ statistics of error
+%plot of predicted vs. actual for all other Hypernav floats
+%Example of dashboard snapshot with plot of grounding chance vs. staying in box for depth levels like five thierty eight (better than mean)
+
+
+
+
+
+
 %\begin{figure}
 %\noindent\includegraphics[width=19pc,angle=0]{figure01.pdf}\\
 %\appendcaption{A1}{Caption here.}
 %\end{figure}
 %
+
 % All appendix figures/tables should be placed in order AFTER the main figures/tables, i.e., tables, appendix tables, figures, appendix figures.
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
