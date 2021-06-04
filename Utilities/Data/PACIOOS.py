@@ -17,21 +17,20 @@ from GeneralUtilities.Filepath.instance import FilePathHandler
 file_handler = FilePathHandler(ROOT_DIR,'PACIOOS')
 
 def add_list(coord_half):
-    holder = [coord_half + dummy for dummy in np.random.normal(scale=.1,size=particle_num)]
-    return holder
+	holder = [coord_half + dummy for dummy in np.random.normal(scale=.1,size=particle_num)]
+	return holder
 
 def get_test_particles(float_pos_dict,start_time):
-    return ParticleSet.from_list(fieldset,
-                                 pclass=ArgoParticle,
-                                 lat=np.array(add_list(float_pos_dict['lat'])),
-                                 lon=np.array(add_list(float_pos_dict['lon'])),
-                                 time=[start_time]*particle_num,
-                                 depth=[10]*particle_num
-                                 )
+	return ParticleSet.from_list(fieldset,
+								 pclass=ArgoParticle,
+								 lat=np.array(add_list(float_pos_dict['lat'])),
+								 lon=np.array(add_list(float_pos_dict['lon'])),
+								 time=[start_time]*particle_num,
+								 depth=[10]*particle_num
+								 )
 particle_num = 500
 
 class DatasetOpenAndParse(object):
-	base_html = 'https://pae-paha.pacioos.hawaii.edu/erddap/griddap/'
 	def __init__(self,float_pos_dict):
 		plot_pad = 2
 		self.float_pos_dict = float_pos_dict
@@ -66,7 +65,16 @@ class DatasetOpenAndParse(object):
 		closest_datetime = todays_date+datetime.timedelta(hours=self.hours_list[closest_idx])
 		self.time_idx = time_in_datetime.index(closest_datetime)
 
-class ReturnUV(DatasetOpenAndParse):
+class HYCOMDataOpenAndParse(DatasetOpenAndParse):
+	base_html = 'https://www.ncei.noaa.gov/erddap/griddap/'
+
+class ReturnHYCOMUV(HYCOMDataOpenAndParse):
+	ID = 'HYCOM_reg6_latest3d'
+
+class PACIOOSDataOpenAndParse(DatasetOpenAndParse):
+	base_html = 'https://pae-paha.pacioos.hawaii.edu/erddap/griddap/'
+
+class ReturnPACIOOSUV(PACIOOSDatasetOpenAndParse):
 	hours_list = np.arange(0,25,3).tolist()
 	ID = 'roms_hiig'
 	def __init__(self,float_pos_dict):
@@ -89,7 +97,7 @@ class ReturnUV(DatasetOpenAndParse):
 		'lat':self.lats,
 		'lon':self.lons,}
 
-class ReturnWaves(DatasetOpenAndParse):
+class ReturnPACIOOSWaves(DatasetOpenAndParse):
 	hours_list = np.arange(0,25,1).tolist()
 	ID = 'ww3_hawaii'
 	def __init__(self,float_pos_dict):
@@ -101,7 +109,7 @@ class ReturnWaves(DatasetOpenAndParse):
 		,self.lower_lon_idx:self.higher_lon_idx].data[0]
 
 
-class ReturnWeather(DatasetOpenAndParse):
+class ReturnPACIOOSWeather(DatasetOpenAndParse):
 	hours_list = np.arange(0,25,1).tolist()
 	ID = 'wrf_hi'
 	def __init__(self,float_pos_dict):
@@ -111,7 +119,6 @@ class ReturnWeather(DatasetOpenAndParse):
 		,:
 		,self.lower_lat_idx:self.higher_lat_idx
 		,self.lower_lon_idx:self.higher_lon_idx].data
-
 
 		self.V = self.dataset['Vwind'][self.time_idx:end_time_idx
 		,:
@@ -196,8 +203,8 @@ def create_prediction(float_pos_dict,vert_move,drift_depth):
 	K_bar = 0.000000000025
 	fieldset.add_constant('Kh_meridional',K_bar)
 	fieldset.add_constant('Kh_zonal',K_bar)
-    kona_pos = (19.6400,-155.9969)
-    lahaina_pos = (20.8700,-156.68)
+	kona_pos = (19.6400,-155.9969)
+	lahaina_pos = (20.8700,-156.68)
 
 	aground_list = []
 	lahaina_list = []
@@ -210,9 +217,9 @@ def create_prediction(float_pos_dict,vert_move,drift_depth):
 	output_file = testParticles.ParticleFile(name=file_handler.tmp_file('Uniform_out.nc'),
 		outputdt=datetime.timedelta(minutes=dt))
 	testParticles.execute(kernels,
-	                      runtime=datetime.timedelta(days=3),
-	                      dt=datetime.timedelta(minutes=dt),
-	                      output_file=output_file,)
+						  runtime=datetime.timedelta(days=3),
+						  dt=datetime.timedelta(minutes=dt),
+						  output_file=output_file,)
 	output_file.export()
 	output_file.close()
 
