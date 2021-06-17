@@ -5,7 +5,6 @@ from operator import attrgetter
 from HyperNav.Utilities.Data.data_parse import raw_base_file, processed_base_file
 from netCDF4 import Dataset
 import matplotlib.pyplot as plt
-from TransitionMatrix.Utilities.Plot.plot_utils import cartopy_setup
 from geopy import distance
 from GeneralUtilities.Data.depth.depth_utilities import PACIOOS as Depth
 from parcels import ParcelsRandom as random
@@ -20,13 +19,74 @@ def add_list(list_):
         holder += [item + dummy for dummy in np.random.normal(scale=.1,size=particle_num)]
     return holder
 
+def PastArgoMovement0055(particle,fieldset,time):
+    
+    surftime = 2 * 3600  # time of deep drift in seconds
+    mindepth = 10
+    vertical_speed = 0.10  # sink and rise speed in m/s
+
+    for k in range(len(prediction_list)-1):
+        driftdepth = depth_list[k]  # maximum depth in m
+        cycletime = 1 * (time_delta[k]-driftdepth/vertical_speed)  # total time of cycle in seconds
+
+
+
+    if particle.cycle_phase == 0:
+        # Phase 0: Sinking with vertical_speed until depth is driftdepth
+        particle.depth += vertical_speed * particle.dt
+        particle.cycle_age += particle.dt
+        if particle.depth >= driftdepth:
+            particle.cycle_phase = 1
+
+    elif particle.cycle_phase == 1:
+        # Phase 1: Drifting at depth for drifttime seconds
+        particle.cycle_age += particle.dt
+        if particle.cycle_age >= cycletime:
+            particle.cycle_age = 0  # reset cycle_age for next cycle
+            particle.cycle_phase = 3
+
+    elif particle.cycle_phase == 3:
+        # Phase 3: Rising with vertical_speed until at surface
+        particle.depth -= vertical_speed * particle.dt
+        particle.cycle_age += particle.dt
+        #particle.temp = fieldset.temp[time, particle.depth, particle.lat, particle.lon]  # if fieldset has temperature
+        if particle.depth <= mindepth:
+            particle.depth = mindepth
+            #particle.temp = 0./0.  # reset temperature to NaN at end of sampling cycle
+            particle.surf_age = 0
+            particle.cycle_phase = 4
+
+    elif particle.cycle_phase == 4:
+        # Phase 4: Transmitting at surface until cycletime is reached
+        particle.cycle_age += particle.dt
+        particle.surf_age += particle.dt
+        if particle.surf_age > surftime:
+            particle.cycle_phase = 0
+
+    if particle.state == ErrorCode.Evaluate:
+        particle.cycle_age += particle.dt  # update cycle_age
+
+
+
+
+
+
+
+def PastArgoMovement0054(particle,fieldset,time):
+    prediction_list = SiteAPI.get_past_locations('0054')
+
+    for k in range(len(prediction_list)-1):
+
+
+
+
 
 
 # Define the new Kernel that mimics Argo vertical movement
 def ArgoVerticalMovement700(particle, fieldset, time):
     driftdepth = 700  # maximum depth in m
-    vertical_speed = 0.075  # sink and rise speed in m/s
-    cycletime = 1 * 86400  # total time of cycle in seconds
+    vertical_speed = 0.10  # sink and rise speed in m/s
+    cycletime = 1 * (86400-driftdepth/vertical_speed)  # total time of cycle in seconds
     surftime = 2 * 3600  # time of deep drift in seconds
     mindepth = 10
 
@@ -68,8 +128,8 @@ def ArgoVerticalMovement700(particle, fieldset, time):
 
 def ArgoVerticalMovement600(particle, fieldset, time):
     driftdepth = 600  # maximum depth in m
-    vertical_speed = 0.075  # sink and rise speed in m/s
-    cycletime = 1 * 86400  # total time of cycle in seconds
+    vertical_speed = 0.10  # sink and rise speed in m/s
+    cycletime = 1 * (86400-driftdepth/vertical_speed)  # total time of cycle in seconds
     surftime = 2 * 3600  # time of deep drift in seconds
     mindepth = 10
 
@@ -110,8 +170,8 @@ def ArgoVerticalMovement600(particle, fieldset, time):
 
 def ArgoVerticalMovement500(particle, fieldset, time):
     driftdepth = 500  # maximum depth in m
-    vertical_speed = 0.075  # sink and rise speed in m/s
-    cycletime = 1 * 86400  # total time of cycle in seconds
+    vertical_speed = 0.10  # sink and rise speed in m/s
+    cycletime = 1 * (86400-driftdepth/vertical_speed)  # total time of cycle in seconds
     surftime = 2 * 3600  # time of deep drift in seconds
     mindepth = 10
 
@@ -152,8 +212,8 @@ def ArgoVerticalMovement500(particle, fieldset, time):
 
 def ArgoVerticalMovement400(particle, fieldset, time):
     driftdepth = 400  # maximum depth in m
-    vertical_speed = 0.075  # sink and rise speed in m/s
-    cycletime = 1 * 86400  # total time of cycle in seconds
+    vertical_speed = 0.10  # sink and rise speed in m/s
+    cycletime = 1 * (86400-driftdepth/vertical_speed)  # total time of cycle in seconds
     surftime = 2 * 3600  # time of deep drift in seconds
     mindepth = 10
 
@@ -195,8 +255,8 @@ def ArgoVerticalMovement400(particle, fieldset, time):
 
 def ArgoVerticalMovement300(particle, fieldset, time):
     driftdepth = 300  # maximum depth in m
-    vertical_speed = 0.075  # sink and rise speed in m/s
-    cycletime = 1 * 86400  # total time of cycle in seconds
+    vertical_speed = 0.10  # sink and rise speed in m/s
+    cycletime = 1 * (86400-driftdepth/vertical_speed)  # total time of cycle in seconds
     surftime = 2 * 3600  # time of deep drift in seconds
     mindepth = 10
 
@@ -237,8 +297,8 @@ def ArgoVerticalMovement300(particle, fieldset, time):
 
 def ArgoVerticalMovement200(particle, fieldset, time):
     driftdepth = 200  # maximum depth in m
-    vertical_speed = 0.075  # sink and rise speed in m/s
-    cycletime = 1 * 86400  # total time of cycle in seconds
+    vertical_speed = 0.10  # sink and rise speed in m/s
+    cycletime = 1 * (86400-driftdepth/vertical_speed)  # total time of cycle in seconds
     surftime = 2 * 3600  # time of deep drift in seconds
     mindepth = 10
 
@@ -279,8 +339,8 @@ def ArgoVerticalMovement200(particle, fieldset, time):
 
 def ArgoVerticalMovement100(particle, fieldset, time):
     driftdepth = 100  # maximum depth in m
-    vertical_speed = 0.075  # sink and rise speed in m/s
-    cycletime = 1 * 86400  # total time of cycle in seconds
+    vertical_speed = 0.1  # sink and rise speed in m/s
+    cycletime = 1 * (86400-driftdepth/vertical_speed)  # total time of cycle in seconds
     surftime = 2 * 3600  # time of deep drift in seconds
     mindepth = 10
 
@@ -321,8 +381,8 @@ def ArgoVerticalMovement100(particle, fieldset, time):
 
 def ArgoVerticalMovement50(particle, fieldset, time):
     driftdepth = 50  # maximum depth in m
-    vertical_speed = 0.075  # sink and rise speed in m/s
-    cycletime = 1 * 86400  # total time of cycle in seconds
+    vertical_speed = 0.1  # sink and rise speed in m/s
+    cycletime = 1 * (86400-driftdepth/vertical_speed)  # total time of cycle in seconds
     surftime = 2 * 3600  # time of deep drift in seconds
     mindepth = 10
 
@@ -367,8 +427,20 @@ class ArgoParticle(JITParticle):
     cycle_phase = Variable('cycle_phase', dtype=np.int32, initial=0.)
     cycle_age = Variable('cycle_age', dtype=np.float32, initial=0.)
     drift_age = Variable('surf_age', dtype=np.float32, initial=0.)
+    profile_idx = Variable('profile_idx', dtype=np.float32, initial=0.)
     #temp = Variable('temp', dtype=np.float32, initial=np.nan)  # if fieldset has temperature
 
+prediction_list_54 = SiteAPI.get_past_locations('0054')
+depth_list_54 = prediction_list_54.return_depth()[1:]
+time_delta_54 = [(time_list[k+1]-time_list[k]).seconds for k in range(len(prediction_list_54.return_time())-1)]
+class HyperNav54(ArgoParticle)
+    k = Variable('k', dtype=np.float32, initial=0.)
+
+prediction_list_55 = SiteAPI.get_past_locations('0055')
+depth_list_55 = prediction_list_55.return_depth()[1:]
+time_delta_55 = [(time_list[k+1]-time_list[k]).seconds for k in range(len(prediction_list_55.return_time())-1)]
+class HyperNav55(ArgoParticle)
+    k = Variable('k', dtype=np.float32, initial=0.)
 
 def get_test_particles():
     return ParticleSet.from_list(fieldset,
