@@ -22,7 +22,7 @@ vert_move_dict={50:ArgoVerticalMovement50,100:ArgoVerticalMovement100,200:ArgoVe
 file_handler = FilePathHandler(ROOT_DIR,'PACIOOS')
 
 def add_list(coord_half):
-	holder = [coord_half + dummy for dummy in np.random.normal(scale=.5,size=particle_num)]
+	holder = [coord_half + dummy for dummy in np.random.normal(scale=.1,size=particle_num)]
 	return holder
 
 def get_test_particles(fieldset,float_pos_dict,start_time):
@@ -59,9 +59,10 @@ class DatasetOpenAndParse(object):
 		attribute_dict = self.dataset.attributes['NC_GLOBAL']
 		self.time_end = datetime.datetime.strptime(attribute_dict['time_coverage_end'],'%Y-%m-%dT%H:%M:%SZ')
 
-		todays_date = float_pos_dict['datetime'].date()
-		todays_date = datetime.datetime.fromordinal(todays_date.toordinal())
-		self.time_idx = self.time.closest_index(todays_date)
+		self.time_idx = self.time.closest_index(float_pos_dict['datetime'])
+
+	def quiver_plot(self,depth):
+		pass
 
 class HYCOMDataOpenAndParse(DatasetOpenAndParse):
 	base_html = 'https://www.ncei.noaa.gov/erddap/griddap/'
@@ -179,9 +180,8 @@ class ReturnPACIOOSWeather(PACIOOSDataOpenAndParse):
 class ParticleDataset(Dataset):
 
 	def time_idx(self,timedelta):
-		time_list = self.variables['time'][:][0,:].tolist()
-		time_list = [datetime.timedelta(seconds=(x-time_list[0])) for x in time_list]
-		return time_list.index(timedelta)
+		time_list = TimeList.time_list_from_seconds(self.variables['time'][:][0,:].tolist())
+		return time_list.closest_index(time_list[0]+timedelta)
 
 	def total_coords(self):
 		return (self.variables['lat'][:],self.variables['lon'][:])
@@ -271,6 +271,10 @@ class UVPrediction():
 		predictions = []
 		self.create_prediction(vert_move_dict[depth_level],days=days)
 		nc = ParticleDataset(file_handler.tmp_file('Uniform_out.nc'))
+		nc['cycle_age'][0,:].data
+		holder = nc['time'][0,:]
+		assert ([x-holder[0] for x in holder][:10] == nc['cycle_age'][0,:].data[:10]).all()
+		#time must be passing the same for the float
 		for k,time in enumerate([datetime.timedelta(days=x) for x in np.arange(.2,days,.1)]):
 			try: 
 				lat_center,lon_center,lat_std,lon_std = nc.get_cloud_center(time)
@@ -289,7 +293,7 @@ class UVPrediction():
 
 	def upload_single_depth_prediction(self,depth_level):
 		SiteAPI.delete_by_model('HYCOM'+'_'+str(depth_level),self.float_pos_dict['ID'])
-		predictions = self.calculate_prediction(depth_level)
+		predictions = self.calculate_prediction(depth_level,days=1)
 		SiteAPI.upload_prediction([x for x in predictions if x['model']=='HYCOM'+'_'+str(depth_level)],self.float_pos_dict['ID'])
 
 	def upload_multi_depth_prediction(self):
