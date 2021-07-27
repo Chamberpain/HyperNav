@@ -11,6 +11,213 @@ from parcels import ParcelsRandom as random
 import os
 
 
+def add_list(coord_half):
+	holder = [coord_half + dummy for dummy in np.random.normal(scale=.1,size=particle_num)]
+	return holder
+
+def get_test_particles(fieldset,float_pos_dict,start_time):
+	return ParticleSet.from_list(fieldset,
+								 pclass=ArgoParticle,
+								 lat=np.array(add_list(float_pos_dict['lat'])),
+								 lon=np.array(add_list(float_pos_dict['lon'])),
+								 time=[start_time]*particle_num,
+								 depth=[10]*particle_num
+								 )
+particle_num = 500
+
+
+class ParticleDataset(Dataset):
+
+	def time_idx(self,timedelta):
+		time_list = TimeList.time_list_from_seconds(self.variables['time'][:][0,:].tolist())
+		return time_list.find_nearest(time_list[0]+timedelta,idx=True)
+
+	def total_coords(self):
+		return (self.variables['lat'][:],self.variables['lon'][:])
+
+	def get_cloud_snapshot(self,timedelta):
+		time_idx = self.time_idx(timedelta)
+		lats,lons = self.total_coords()
+		return (lats[:,time_idx],lons[:,time_idx])
+
+	def get_cloud_center(self,timedelta):
+		lats,lons = self.get_cloud_snapshot(timedelta)
+		lat_center = lats.mean()
+		lat_std = lats.std()
+		lon_center = lons.mean()
+		lon_std = lons.std()
+		return (lat_center,lon_center,lat_std,lon_std)
+
+	def get_depth_snapshot(self,timedelta):
+		depth = Depth()
+		lats,lons = self.get_cloud_snapshot(timedelta)
+		return [depth.return_z(x) for x in zip(lats,lons)]
+
+	def within_bounds(self,position):
+		bnds_list = []
+		for ii in [1,2,3]:
+			lats,lons = self.get_cloud_snapshot(datetime.timedelta(days=ii))
+			dist_list = [geopy.distance.GreatCircleDistance(float_pos,position).nm>50 for float_pos in zip(lats,lons)]
+			bnds_list.append(np.sum(dist_list)/len(lats)*100)
+		return bnds_list
+
+	def dist_list(self,float_dict):
+		float_pos = (float_dict['lat'],float_dict['lon'])
+		dist_list = []
+		for ii in [1,2,3]:
+			lat,lon,dummy,dummy = self.get_cloud_center(datetime.timedelta(days=ii))
+			dist_list.append(geopy.distance.GreatCircleDistance(float_pos,(lat,lon)).nm)
+		return dist_list
+
+	def percentage_aground(self,depth_level):
+		depth = Depth()
+		(ax,fig) = cartopy_setup(nc,float_pos_dict)
+		XX1,YY1 = np.meshgrid(depth.x,depth.y)
+		cs = plt.contour(XX1,YY1,depth.z,[-1*depth_level-0.1*depth_level])
+		plt.close()
+		paths = cs.collections[0].get_paths()
+		lat,lon = self.total_coords()
+		cloud_mean_tuple = (lat.mean(),lon.mean())
+		problem_idxs = []
+		for k,path in enumerate(paths):
+			mean_path_tuple = (path.vertices[:,1].mean(),path.vertices[:,0].mean()) #path outputs are in x,y format
+			cloud_to_path_dist = geopy.distance.GreatCircleDistance(mean_path_tuple,cloud_mean_tuple).nm
+			if cloud_to_path_dist>90: #computationally efficient way of not computing impossible paths
+				continue
+			truth_dummy = path.contains_points(list(zip(lon.flatten(),lat.flatten())))
+			row_idx,dummy = np.where(truth_dummy.reshape(lat.shape))
+			problem_idxs+=row_idx.tolist()
+		problem_idxs = np.unique(problem_idxs)
+		return (np.unique(problem_idxs).shape[0]/lat.shape[0])*100 #number of problem floats/number of total floats
+
+class UVPrediction():
+
+	def __init__(self,float_pos_dict,uv=False,*args,**kwargs):
+		if not uv:
+			uv = ReturnHYCOMUV(float_pos_dict,*args,**kwargs)
+		self.float_pos_dict = float_pos_dict
+		self.uv = uv
+
+	def create_prediction(self,vert_move,days=3):
+		fieldset = FieldSet.from_data(self.uv.data, self.uv.dimensions,transpose=False)
+		fieldset.mindepth = self.uv.dimensions['depth'][0]
+		K_bar = 0.000000000025
+		fieldset.add_constant('Kh_meridional',K_bar)
+		fieldset.add_constant('Kh_zonal',K_bar)
+		testParticles = get_test_particles(fieldset,self.float_pos_dict,self.uv.dimensions['time'][0])
+		kernels = vert_move + testParticles.Kernel(AdvectionRK4)
+		dt = 15 #15 minute timestep
+		output_file = testParticles.ParticleFile(name=file_handler.tmp_file('Uniform_out.nc'),
+			outputdt=datetime.timedelta(minutes=dt))
+		testParticles.execute(kernels,
+							  runtime=datetime.timedelta(days=days),
+							  dt=datetime.timedelta(minutes=dt),
+							  output_file=output_file,)
+		output_file.export()
+		output_file.close()
+
+	def calculate_prediction(self,depth_level,days=3.):
+		predictions = []
+		self.create_prediction(vert_move_dict[depth_level],days=days)
+		nc = ParticleDataset(file_handler.tmp_file('Uniform_out.nc'))
+		nc['cycle_age'][0,:].data
+		holder = nc['time'][0,:]
+		assert ([x-holder[0] for x in holder][:10] == nc['cycle_age'][0,:].data[:10]).all()
+		#time must be passing the same for the float
+		for k,time in enumerate([datetime.timedelta(days=x) for x in np.arange(.2,days,.1)]):
+			try: 
+				lat_center,lon_center,lat_std,lon_std = nc.get_cloud_center(time)
+			except ValueError:
+				continue
+			date_string = (self.float_pos_dict['datetime']+time).isoformat()
+			id_string = int(str(self.float_pos_dict['ID'])+'0'+str(depth_level)+'0'+str(k))
+			dummy_dict = {"prediction_id":id_string,
+			"datetime":date_string,
+			"lat":float(lat_center),
+			"lon":float(lon_center),
+			"uncertainty":0,
+			"model":'HYCOM'+'_'+str(depth_level)}
+			predictions.append(dummy_dict)
+		return predictions
+
+	def upload_single_depth_prediction(self,depth_level):
+		SiteAPI.delete_by_model('HYCOM'+'_'+str(depth_level),self.float_pos_dict['ID'])
+		predictions = self.calculate_prediction(depth_level,days=1)
+		SiteAPI.upload_prediction([x for x in predictions if x['model']=='HYCOM'+'_'+str(depth_level)],self.float_pos_dict['ID'])
+
+	def upload_multi_depth_prediction(self):
+		for depth_level in vert_move_dict.keys():
+			self.upload_single_depth_prediction(depth_level)
+
+	def plot_multi_depth_prediction(self):
+		color_dict = {50:'red',100:'purple',200:'blue',300:'teal',
+		400:'pink',500:'tan',600:'orange',700:'yellow'}
+		self.create_prediction(vert_move_dict[50])
+		nc = ParticleDataset(file_handler.tmp_file('Uniform_out.nc'))
+		XX,YY,ax = HypernavCartopy(nc,self.float_pos_dict,lon_grid=self.uv.lons,lat_grid=self.uv.lats,pad=-0.5).get_map()
+		depth = Depth()
+		XX1,YY1 = np.meshgrid(depth.x,depth.y)
+		plt.contour(XX1,YY1,depth.z,[-1*self.float_pos_dict['park_pressure']],colors=('k',),linewidths=(4,),zorder=4,label='Drift Depth Contour')
+		plt.contourf(XX1,YY1,np.ma.masked_greater(depth.z/1000.,0),zorder=3,cmap=plt.get_cmap('Greys'))
+		plt.colorbar(label='Depth (km)')
+		plt.scatter(self.float_pos_dict['lon'],self.float_pos_dict['lat'],marker='x',c='k',linewidth=6,s=250,zorder=6,label='Location')
+		for k in range(particle_num):
+			lats = nc['lat'][k,:]
+			lons = nc['lon'][k,:]
+			plt.plot(lons,lats,linewidth=2,zorder=10)
+		plt.title('Float '+str(self.float_pos_dict['ID'])+' at '+datetime.datetime.now().isoformat())
+		savefile =str(self.float_pos_dict['ID'])+'_Multidepth_'+str(self.float_pos_dict['profile'])		
+		plt.savefig(file_handler.out_file(savefile))
+		plt.close()	
+
+
+	def bonus():
+		for vert_move,drift_depth in zip([ArgoVerticalMovement700,ArgoVerticalMovement600,ArgoVerticalMovement500,ArgoVerticalMovement400,ArgoVerticalMovement300,ArgoVerticalMovement200,ArgoVerticalMovement100,ArgoVerticalMovement50],[700,600,500,400,300,200,100,50]):
+			percent_aground,percent_lahaina_in_bounds,percent_kona_in_bounds,float_move = create_prediction(float_pos_dict,vert_move,drift_depth)
+			plot_total_prediction(drift_depth)
+			plot_snapshot_prediction(drift_depth)
+			nc = ParticleDataset(file_handler.tmp_file('Uniform_out.nc'))
+			percent_aground = nc.percentage_aground(depth_level = drift_depth)
+			percent_lahaina_in_bounds = nc.within_bounds(lahaina_pos)
+			percent_kona_in_bounds = nc.within_bounds(kona_pos)
+			float_move = nc.dist_list(float_pos_dict)
+			aground_list.append((percent_aground,drift_depth))
+			lahaina_list.append((percent_lahaina_in_bounds,drift_depth))
+			kona_list.append((percent_kona_in_bounds,drift_depth))
+			float_move_list.append((float_move,drift_depth))
+
+		plt.bar(depth,aground_percent,width=25)
+		plt.ylabel('Grounding Percentage')
+		plt.xlabel('Depth')
+		plt.savefig(file_handler.out_file('grounding_percentage'))
+		plt.close()
+
+		def plot_position(pos_list):
+			for percent_outside,depth in pos_list:
+				plt.plot([1,2,3],percent_outside,label=(str(depth)+'m Depth'))
+			plt.legend()
+			plt.xlabel('Days')
+
+
+		plt.figure()
+		plot_position(lahaina_list)
+		plt.ylabel('Percent of Floats Outside Operations Area')
+		plt.savefig(file_handler.out_file('lahaina_percentage'))
+		plt.close()
+
+		plt.figure()
+		plot_position(kona_list)
+		plt.ylabel('Percent of Floats Outside Operations Area')
+		plt.savefig(file_handler.out_file('kona_percentage'))
+		plt.close()
+
+		plt.figure()
+		plot_position(float_move_list)
+		plt.ylabel('Distance from Starting Point Floats Move (nm)')
+		plt.savefig(file_handler.out_file('float_dist'))
+		plt.close()
+
+
 
 
 def add_list(list_):
