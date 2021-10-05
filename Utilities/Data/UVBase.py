@@ -1,12 +1,14 @@
 import pickle
 from pydap.client import open_url
 import datetime
-from GeneralUtilities.Compute.list import find_nearest, TimeList, LatList, LonList, DepthList
+from GeneralUtilities.Compute.list import TimeList, LatList, LonList, DepthList
 import numpy as np 
+import os
 
 class Base(object):
-	def __init__(self,u=None,v=None,lons=None,lats=None,time=None,depth=None,*args,**kwargs):
+	def __init__(self,u=None,v=None,lons=None,lats=None,time=None,depth=None,units=None,*args,**kwargs):
 		super().__init__(*args,**kwargs)
+		assert units == 'm/s'
 		self.u = u
 		self.v = v
 		self.lons = LonList(lons)
@@ -14,20 +16,30 @@ class Base(object):
 		self.time = TimeList(time)
 		self.depth = DepthList(depth)
 
-		time_v,dummy,dummy,dummy = np.where(abs(self.v)>3)
-		time_u,dummy,dummy,dummy = np.where(abs(self.u)>3)		
-		remove = np.unique(time_v.tolist()+time_u.tolist()).tolist()
-		time_mask = [x not in remove for x in range(len(self.time))]
-		self.u = self.u[time_mask,:,:,:]
-		self.v = self.v[time_mask,:,:,:]
-		self.time = TimeList(np.array(self.time)[time_mask].tolist())
+		self.u = np.ma.masked_array(self.u,mask=abs(self.u)>3)
+		self.v = np.ma.masked_array(self.v,mask=abs(self.v)>3)
 
+
+		# time_v,dummy,dummy,dummy = np.where(abs(self.v)>3)
+		# time_u,dummy,dummy,dummy = np.where(abs(self.u)>3)		
+		# remove = np.unique(time_v.tolist()+time_u.tolist()).tolist()
+		# time_mask = [x not in remove for x in range(len(self.time))]
+		# self.u = self.u[time_mask,:,:,:]
+		# self.v = self.v[time_mask,:,:,:]
+		# self.time = TimeList(np.array(self.time)[time_mask].tolist())
+
+#make sure the variable axis are the proper class
 		assert isinstance(self.time,TimeList) 
 		assert isinstance(self.depth,DepthList) 
 		assert isinstance(self.lats,LatList) 
 		assert isinstance(self.lons,LonList) 
 
-
+#make sure all the dimensions are consistent
+		assert self.u.shape==self.v.shape
+		assert len(self.time)==self.u.shape[0]
+		assert len(self.depth)==self.u.shape[1]
+		assert len(self.lats)==self.u.shape[2]
+		assert len(self.lons)==self.u.shape[3]
 
 	def return_u_v(self,time=None,depth=None):
 		u_holder = self.u[self.time.find_nearest(time,idx=True),self.depth.find_nearest(depth,idx=True),:,:]
@@ -70,10 +82,10 @@ class Base(object):
 		return cls(u=out.u,v=out.v,lons=out.lons,lats=out.lats,time=out.time,depth=out.depth)
 
 	def plot(self,ax=False):
-		return self.plot_class(self.lats,self.lons,ax).get_map()
+		return self.PlotClass(self.lats,self.lons,ax).get_map()
 
-	def return_parcels_uv(self,start_date):
-		end_date = start_date+datetime.timedelta(days=5) 
+	def return_parcels_uv(self,start_date,days_delta=5):
+		end_date = start_date+datetime.timedelta(days=days_delta) 
 		time_mask = [(x>start_date)&(x<end_date) for x in self.time]
 
 		out_time = TimeList(np.array(self.time)[time_mask].tolist())
@@ -82,7 +94,7 @@ class Base(object):
 		out_w = np.zeros(out_u.shape)
 		data = {'U':out_u,'V':out_v,'W':out_w}
 		dimensions = {'time':out_time.seconds_since(),
-		'depth':self.depth,
+		'depth':[-x for x in self.depth],
 		'lat':self.lats,
 		'lon':self.lons,}		
 		return (data,dimensions)
@@ -119,9 +131,19 @@ class Base(object):
 		time_idx_list = list(range(len(time))[::100])+[len(time)]
 		u_list = []
 		v_list = []
+		time_list = []
 		k = 0
 		while k < len(time_idx_list)-1:
 			print(k)
+			k_filename = cls.file_handler.tmp_file(cls.dataset_description+'_'+cls.location+'_data/'+str(k))
+			if os.path.isfile(k_filename):
+				with open(k_filename, 'rb') as f:
+					uv_dict = pickle.load(f)
+				u_list.append(uv_dict['u'])
+				v_list.append(uv_dict['v'])
+				time_list.append(TimeList.time_list_from_seconds(uv_dict['time']))
+				k+=1
+				continue
 			try:
 				u_holder = dataset['water_u'][time_idx_list[k]:time_idx_list[k+1]
 				,:(depth_idx+1)
@@ -131,13 +153,15 @@ class Base(object):
 				,:(depth_idx+1)
 				,lower_lat_idx:higher_lat_idx
 				,lower_lon_idx:higher_lon_idx]
+				with open(k_filename, 'wb') as f:
+					pickle.dump({'u':u_holder['water_u'].data,'v':v_holder['water_v'].data, 'time':u_holder['time'].data},f)
 				u_list.append(u_holder)
 				v_list.append(v_holder)
 				k +=1
 			except:
 				continue
-		u = np.concatenate([np.array(x['water_u']) for x in u_list])
-		v = np.concatenate([np.array(x['water_v']) for x in v_list])
+		u = np.concatenate([x for x in u_list])
+		v = np.concatenate([x for x in v_list])
 		assert u.shape==v.shape
 		assert u.shape[0] == len(time)
 		assert u.shape[1] == len(depth)
