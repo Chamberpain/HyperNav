@@ -13,8 +13,25 @@ from parcels import ParcelsRandom as random
 from GeneralUtilities.Compute.list import TimeList
 import os
 import geopy
+import h5py
+from GeneralUtilities.Compute.list import LatList,LonList,TimeList
+from HyperNav.Data.__init__ import ROOT_DIR as DATA_DIR
+
 
 file_handler = FilePathHandler(ROOT_DIR,'RunParcels')
+
+class ClearSky():
+	def __init__(self,filename):
+		file = os.path.join(DATA_DIR,filename)
+		data = h5py.File(file)
+		self.lat = LatList(data['lat'][:,0].tolist())
+		self.lon = LonList(data['lon'][0,:].tolist())
+		self.array = data['percent clear days']
+
+	def return_clear_sky(self,lat,lon):
+		lat_idx = self.lat.find_nearest(lat,idx=True)
+		lon_idx = self.lon.find_nearest(lon,idx=True)
+		return self.array[lat_idx,lon_idx]
 
 class ParticleList(list):
 
@@ -27,9 +44,17 @@ class ParticleList(list):
 			lons += lons_holder.data.tolist()
 		return (lats,lons)
 
+	def get_time(self,timedelta):
+		time_out = []
+		for pd in self:
+			time_list = TimeList.time_list_from_seconds(pd.variables['time'][:][0,:].tolist())
+			time = time_list[0]+timedelta
+			time_out += [time]*pd.variables['time'].shape[0]
+		return time_out
+
 	def plot_density(self,timedelta,bins,ax):
 		lats,lons = self.get_cloud_snapshot(timedelta)
-		H,x,y = np.histogram2d(lons,lats,bins=[uv_class.lons,uv_class.lats],density=True)
+		H,x,y = np.histogram2d(lons,lats,bins=bins,density=True)
 		H = np.ma.masked_equal(H.T,0)
 		XX,YY = np.meshgrid(x[:-1],y[:-1],indexing='xy')
 		ax.contourf(XX,YY,np.log(H),vmin=0,vmax=3)
@@ -43,6 +68,8 @@ class ParticleDataset(Dataset):
 
 	def total_coords(self):
 		return (self.variables['lat'][:],self.variables['lon'][:])
+
+
 
 	def get_cloud_snapshot(self,timedelta):
 		time_idx = self.time_idx(timedelta)

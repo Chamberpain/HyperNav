@@ -13,7 +13,6 @@ from socket import timeout
 import os
 import pickle
 
-
 class HYCOMBase(Base):
 	dataset_description = 'HYCOM'
 	hours_list = np.arange(0,25,3).tolist()

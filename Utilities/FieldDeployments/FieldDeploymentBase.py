@@ -3,6 +3,7 @@ import cartopy.crs as ccrs
 import numpy as np
 import os
 import math
+from HyperNav.Utilities.Compute.RunParcels import ParticleList,UVPrediction,ParticleDataset
 
 def bathy_plot(uv_class,file_handler):
 	fig = plt.figure(figsize=(12,12))
@@ -100,22 +101,24 @@ def shear_movie(uv_class,mask,file_handler,lat,lon):
 def pdf_particles_compute(uv_class,float_list,file_handler):
 	pl = ParticleList()
 	for float_pos_dict,filename in float_list:
-		uv_class.time.set_ref_date(float_pos_dict['time'])
 		for start_day in [5]*7:
 			float_pos_dict['time'] = float_pos_dict['time']+datetime.timedelta(days=start_day)
-			data,dimensions = uv_class.return_parcels_uv(float_pos_dict['time'],days_delta=30)
+			uv = uv_class.load(float_pos_dict['time'],float_pos_dict['time']+datetime.timedelta(days=50))		
+			uv.time.set_ref_date(float_pos_dict['time'])
+			data,dimensions = uv.return_parcels_uv(float_pos_dict['time'],days_delta=46)
 			prediction = UVPrediction(float_pos_dict,data,dimensions)
-			prediction.create_prediction(ArgoVerticalMovement600,days=29.)
+			prediction.create_prediction(ArgoVerticalMovement600,days=45.)
 			nc = ParticleDataset('/Users/paulchamberlain/Projects/HyperNav/Pipeline/Compute/RunParcels/tmp/Uniform_out.nc')
 			pl.append(nc)
-	for k,timedelta in enumerate([datetime.timedelta(days=x) for x in range(27)]):
-		XX,YY,ax = uv_class.plot()
-		pl.plot_density(timedelta,[uv_class.lons,uv_class.lats],ax)
+
+	for k,timedelta in enumerate([datetime.timedelta(days=x) for x in range(45)]):
+		XX,YY,ax = uv.plot()
+		pl.plot_density(timedelta,[uv.lons,uv.lats],ax)
 		plt.savefig(file_handler.out_file('pdf_movie/'+str(k)))
 		plt.close()
 	os.chdir(file_handler.out_file('pdf_movie/'))
 	os.system("ffmpeg -r 5 -i %01d.png -vcodec mpeg4 -y movie.mp4")
-
+	
 
 def eke_plots(uv_class,file_handler):
 	shallow = 0

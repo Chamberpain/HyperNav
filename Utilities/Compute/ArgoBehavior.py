@@ -47,7 +47,7 @@ def ArgoVerticalMovement700(particle, fieldset, time):
 def ArgoVerticalMovement600(particle, fieldset, time):
 	driftdepth = 600  # maximum depth in m
 	vertical_speed = 0.10  # sink and rise speed in m/s
-	cycletime = 1 * (86400-driftdepth/vertical_speed)  # total time of cycle in seconds
+	cycletime = 2 * (86400-driftdepth/vertical_speed)  # total time of cycle in seconds
 	surftime = 2 * 3600  # time of deep drift in seconds
 	mindepth = 10
 

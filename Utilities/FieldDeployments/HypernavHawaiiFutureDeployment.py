@@ -4,20 +4,21 @@ import matplotlib.pyplot as plt
 import datetime
 from GeneralUtilities.Filepath.instance import FilePathHandler
 from HyperNav.Utilities.FieldDeployments.FieldDeploymentBase import mean_monthly_plot,quiver_movie,shear_movie,eke_plots
-from HyperNav.Utilities.Compute.RunParcels import UVPrediction,ParticleDataset,ParticleList
+from HyperNav.Utilities.Compute.RunParcels import UVPrediction,ParticleDataset,ParticleList,ClearSky
 import cartopy.crs as ccrs
 import numpy as np
 import os
 from HyperNav.Utilities.Compute.ArgoBehavior import ArgoVerticalMovement700,ArgoVerticalMovement600,ArgoVerticalMovement500,ArgoVerticalMovement400,ArgoVerticalMovement300,ArgoVerticalMovement200,ArgoVerticalMovement100,ArgoVerticalMovement50
 from GeneralUtilities.Plot.Cartopy.regional_plot import RegionalBase
+
 file_handler = FilePathHandler(ROOT_DIR,'HypernavHawaiiFutureDeployment')
 
 
 class FutureHawaiiCartopy(RegionalBase):
-    llcrnrlon=-157.5
-    llcrnrlat=18.5
-    urcrnrlon=-154.5
-    urcrnrlat=21.5
+    llcrnrlon=-159
+    llcrnrlat=16
+    urcrnrlon=-154
+    urcrnrlat=22
     def __init__(self,*args,**kwargs):
         print('I am plotting Kona')
         super().__init__(*args,**kwargs)
@@ -59,6 +60,50 @@ def hawaii_eke():
 	eke_plots(uv_class,file_handler)
 
 def hawaii_particles_compute():
-	uv_class = HYCOMFutureHawaii.load()
+	uv_class = HYCOMFutureHawaii
 	float_list = [({'lat':19.5,'lon':-156.3,'time':datetime.datetime(2015,11,20)},'site_1')]
 	pdf_particles_compute(uv_class,float_list,file_handler)
+
+def clear_days_prediction():
+	uv_class = HYCOMFutureHawaii.load()
+	float_list = [({'lat':19.5,'lon':-156.4,'time':datetime.datetime(2015,11,15)},'site_1')]
+({'lat':19.5,'lon':-156.4,'time':datetime.datetime(2015,11,15)},'site_1')
+	dict_list = []
+	for month,filename in [(12,'percent_clear_days_Dec_Hawaii.h5'),(1,'percent_clear_days_Jan_Hawaii.h5')]:
+		dict_list.append((month,ClearSky(filename)))
+	clear_sky_dict = dict(dict_list)
+	pl = ParticleList()
+	for float_pos_dict,filename in float_list:
+		uv_class.time.set_ref_date(float_pos_dict['time'])
+		for start_day in [5]*7:
+			float_pos_dict['time'] = float_pos_dict['time']+datetime.timedelta(days=start_day)
+			data,dimensions = uv_class.return_parcels_uv(float_pos_dict['time'],days_delta=30)
+			prediction = UVPrediction(float_pos_dict,data,dimensions)
+			prediction.create_prediction(ArgoVerticalMovement600,days=29.)
+			nc = ParticleDataset('/Users/paulchamberlain/Projects/HyperNav/Pipeline/Compute/RunParcels/tmp/Uniform_out.nc')
+			pl.append(nc)
+		for k,timedelta in enumerate([datetime.timedelta(days=x) for x in range(27)]):
+			XX,YY,ax = uv_class.plot()
+			pl.plot_density(timedelta,[uv_class.lons,uv_class.lats],ax)
+			plt.savefig(file_handler.out_file('pdf_movie_'+filename+'/'+str(k)))
+			plt.close()
+		os.chdir(file_handler.out_file('pdf_movie_'+filename+'/'))
+		os.system("ffmpeg -r 5 -i %01d.png -vcodec mpeg4 -y movie.mp4")
+		clear_sky_plot = []
+		for time_delta in [datetime.timedelta(days = x ) for x in np.arange(2,30,2).tolist()]:
+			lats,lons = pl.get_cloud_snapshot(time_delta)
+			time = pl.get_time(time_delta)
+			clear_sky_holder = [clear_sky_dict[12].return_clear_sky(y,x) for x,y,t in zip(lons,lats,time)]
+			clear_sky_plot.append((time_delta.days,np.nanmean(clear_sky_holder)))
+		days,sky = zip(*clear_sky_plot)
+		Y = np.cumsum(np.array(sky)*.02)
+		plt.plot(days,Y)
+		plt.xlabel('Days')
+		plt.ylabel('Cumulative Chance of Clear Sky')
+		plt.savefig('cumulative_clear_sky')
+		plt.close()
+		plt.plot(days,sky)
+		plt.xlabel('Days')
+		plt.ylabel('Chance of Clear Sky')
+		plt.savefig('clear_sky')
+		plt.close()
