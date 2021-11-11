@@ -4,6 +4,7 @@ import numpy as np
 import os
 import math
 from HyperNav.Utilities.Compute.RunParcels import ParticleList,UVPrediction,ParticleDataset
+import datetime
 
 def bathy_plot(uv_class,file_handler):
 	fig = plt.figure(figsize=(12,12))

@@ -31,7 +31,7 @@ class HYCOMHawaii(HYCOMBase):
 	ID = 'HYCOM_reg6_latest3d'
 	PlotClass = KonaCartopy
 	DepthClass = PACIOOS
-		
+
 class HYCOMPuertoRico(HYCOMBase):
 	location = 'PuertoRico'
 	urlon = -65

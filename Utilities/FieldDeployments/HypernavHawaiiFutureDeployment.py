@@ -3,13 +3,14 @@ from HyperNav.Utilities.Data.__init__ import ROOT_DIR
 import matplotlib.pyplot as plt
 import datetime
 from GeneralUtilities.Filepath.instance import FilePathHandler
-from HyperNav.Utilities.FieldDeployments.FieldDeploymentBase import mean_monthly_plot,quiver_movie,shear_movie,eke_plots
+from HyperNav.Utilities.FieldDeployments.FieldDeploymentBase import mean_monthly_plot,quiver_movie,shear_movie,eke_plots,pdf_particles_compute
 from HyperNav.Utilities.Compute.RunParcels import UVPrediction,ParticleDataset,ParticleList,ClearSky
 import cartopy.crs as ccrs
 import numpy as np
 import os
 from HyperNav.Utilities.Compute.ArgoBehavior import ArgoVerticalMovement700,ArgoVerticalMovement600,ArgoVerticalMovement500,ArgoVerticalMovement400,ArgoVerticalMovement300,ArgoVerticalMovement200,ArgoVerticalMovement100,ArgoVerticalMovement50
 from GeneralUtilities.Plot.Cartopy.regional_plot import RegionalBase
+
 
 file_handler = FilePathHandler(ROOT_DIR,'HypernavHawaiiFutureDeployment')
 
@@ -67,7 +68,6 @@ def hawaii_particles_compute():
 def clear_days_prediction():
 	uv_class = HYCOMFutureHawaii.load()
 	float_list = [({'lat':19.5,'lon':-156.4,'time':datetime.datetime(2015,11,15)},'site_1')]
-({'lat':19.5,'lon':-156.4,'time':datetime.datetime(2015,11,15)},'site_1')
 	dict_list = []
 	for month,filename in [(12,'percent_clear_days_Dec_Hawaii.h5'),(1,'percent_clear_days_Jan_Hawaii.h5')]:
 		dict_list.append((month,ClearSky(filename)))

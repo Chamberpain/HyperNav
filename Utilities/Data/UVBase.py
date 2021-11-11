@@ -83,7 +83,7 @@ class Base(object):
 
 	@classmethod
 	def load(cls,date_start,date_end):
-		time,lats,lons,depth = cls.get_dimensions()
+		time,lats,lons,depth,lower_lon_idx,higher_lon_idx,lower_lat_idx,higher_lat_idx = cls.get_dimensions()
 		time_idx_list = time.get_file_indexes(date_start,date_end)
 		u_list = []
 		v_list = []
@@ -152,32 +152,31 @@ class Base(object):
 		higher_lat_idx = lats.find_nearest(cls.urlat,idx=True)
 		lower_lat_idx = lats.find_nearest(cls.lllat,idx=True)
 		lats = lats[lower_lat_idx:higher_lat_idx]
-
-		return (time,lats,lons,depth)
+		return (time,lats,lons,depth,lower_lon_idx,higher_lon_idx,lower_lat_idx,higher_lat_idx)
 
 
 	@classmethod
 	def download_and_save(cls):
 		dataset = open_url(cls.base_html+cls.ID)
 		#open dataset using erdap server
-		time,lats,lons,depth = cls.det_dimensions()
+		time,lats,lons,depth,lower_lon_idx,higher_lon_idx,lower_lat_idx,higher_lat_idx = cls.get_dimensions()
 		#define necessary variables from self describing netcdf 
 		attribute_dict = dataset.attributes['NC_GLOBAL']
 
-		time_list = []
+		idx_list = time.return_time_list()
 		k = 0
-		while k < len(time.return_time_list())-1:
+		while k < len(idx_list)-1:
 			print(k)
 			k_filename = cls.file_handler.tmp_file(cls.dataset_description+'_'+cls.location+'_data/'+str(k))
 			if os.path.isfile(k_filename):
 				continue
 			try:
-				u_holder = dataset['water_u'][time_idx_list[k]:time_idx_list[k+1]
-				,:(depth_idx+1)
+				u_holder = dataset['water_u'][idx_list[k]:idx_list[k+1]
+				,:(len(depth))
 				,lower_lat_idx:higher_lat_idx
 				,lower_lon_idx:higher_lon_idx]
-				v_holder = dataset['water_v'][time_idx_list[k]:time_idx_list[k+1]
-				,:(depth_idx+1)
+				v_holder = dataset['water_v'][idx_list[k]:idx_list[k+1]
+				,:(len(depth))
 				,lower_lat_idx:higher_lat_idx
 				,lower_lon_idx:higher_lon_idx]
 				with open(k_filename, 'wb') as f:
