@@ -44,8 +44,8 @@ def ArgoVerticalMovement700(particle, fieldset, time):
 def ArgoVerticalMovement600(particle, fieldset, time):
 	driftdepth = 600  # maximum depth in m
 	vertical_speed = 0.10  # sink and rise speed in m/s
-	cycletime = 2 * (86400-driftdepth/vertical_speed)  # total time of cycle in seconds
 	surftime = 2 * 3600  # time of deep drift in seconds
+	cycletime = 1 * (86400-driftdepth/vertical_speed-surftime)  # total time of cycle in seconds
 	mindepth = 10
 
 	if particle.cycle_phase == 0:
@@ -59,7 +59,6 @@ def ArgoVerticalMovement600(particle, fieldset, time):
 		# Phase 1: Drifting at depth for drifttime seconds
 		particle.cycle_age += particle.dt
 		if particle.cycle_age >= cycletime:
-			particle.cycle_age = 0  # reset cycle_age for next cycle
 			particle.cycle_phase = 3
 
 	elif particle.cycle_phase == 3:
@@ -79,9 +78,8 @@ def ArgoVerticalMovement600(particle, fieldset, time):
 		particle.surf_age += particle.dt
 		if particle.surf_age > surftime:
 			particle.cycle_phase = 0
+			particle.cycle_age = 0  # reset cycle_age for next cycle
 
-	if particle.state == ErrorCode.Evaluate:
-		particle.cycle_age += particle.dt  # update cycle_age
 
 def ArgoVerticalMovement500(particle, fieldset, time):
 	driftdepth = 500  # maximum depth in m

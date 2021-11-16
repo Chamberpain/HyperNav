@@ -21,17 +21,27 @@ from HyperNav.Data.__init__ import ROOT_DIR as DATA_DIR
 file_handler = FilePathHandler(ROOT_DIR,'RunParcels')
 
 class ClearSky():
-	def __init__(self,filename):
-		file = os.path.join(DATA_DIR,filename)
-		data = h5py.File(file)
-		self.lat = LatList(data['lat'][:,0].tolist())
-		self.lon = LonList(data['lon'][0,:].tolist())
-		self.array = data['percent clear days']
+	def __init__(self,month):
+		self.aot = h5py.File(os.path.join(DATA_DIR,'aot869_'+month+'_Hawaii.h5'))
+		self.percent_aot = h5py.File(os.path.join(DATA_DIR,'percent_aot869_le_0.1_'+month+'_Hawaii.h5'))
+		self.percent_clear = h5py.File(os.path.join(DATA_DIR,'percent_clear_days_'+month+'_Hawaii.h5'))
 
-	def return_clear_sky(self,lat,lon):
+		self.lat = LatList(self.aot['lat'][:,0].tolist())
+		self.lon = LonList(self.aot['lon'][0,:].tolist())
+
+	def return_data(self,data,std,lat,lon):
 		lat_idx = self.lat.find_nearest(lat,idx=True)
 		lon_idx = self.lon.find_nearest(lon,idx=True)
-		return self.array[lat_idx,lon_idx]
+		return np.random.normal(loc=data[lat_idx,lon_idx],scale=std[lat_idx,lon_idx])
+
+	def return_aot_percent(self,lat,lon):
+		return self.return_data(self.percent_clear['percent AOT869<=0.1 (mean)'],self.percent_clear['percent AOT869<=0.1 (std)'],lat,lon)
+		 	
+	def return_aot(self,lat,lon):
+		return self.return_data(self.aot['AOT869 (mean)'],self.aot['AOT869 (std)'],lat,lon)
+
+	def return_clear_sky(self,lat,lon):
+		return self.return_data(self.percent_aot['percent clear days (mean)'],self.percent_aot['percent clear days (std)'],lat,lon)
 
 class ParticleList(list):
 

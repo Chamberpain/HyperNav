@@ -1,4 +1,4 @@
-from HyperNav.Utilities.Data.HYCOM import HYCOMHawaii
+from GeneralUtilities.Plot.Cartopy.regional_plot import KonaCartopy
 from HyperNav.Utilities.Data.__init__ import ROOT_DIR
 import matplotlib.pyplot as plt
 import datetime
@@ -10,6 +10,7 @@ import numpy as np
 import os
 from HyperNav.Utilities.Compute.ArgoBehavior import ArgoVerticalMovement700,ArgoVerticalMovement600,ArgoVerticalMovement500,ArgoVerticalMovement400,ArgoVerticalMovement300,ArgoVerticalMovement200,ArgoVerticalMovement100,ArgoVerticalMovement50
 from GeneralUtilities.Plot.Cartopy.regional_plot import RegionalBase
+from HyperNav.Utilities.Data.HYCOM import HYCOMHawaii
 
 
 file_handler = FilePathHandler(ROOT_DIR,'HypernavHawaiiFutureDeployment')
@@ -65,24 +66,109 @@ def hawaii_particles_compute():
 	float_list = [({'lat':19.5,'lon':-156.3,'time':datetime.datetime(2015,11,20)},'site_1')]
 	pdf_particles_compute(uv_class,float_list,file_handler)
 
+def future_prediction():
+	date_start = datetime.datetime(2021,11,14)
+	date_end = datetime.datetime(2021,11,21)
+	HYCOMFutureHawaii.load(date_start-datetime.timedelta(days=1),date_end)
+	uv_class = HYCOMFutureHawaii.load(date_start-datetime.timedelta(days=1),date_end)
+	lats = np.arange(19.4,19.65,0.05)
+	lons = np.arange(-156.5,-156.2,0.05)
+	X,Y = np.meshgrid(lons,lats)
+	lons = X.flatten()
+	lats = Y.flatten()
+	dates = [date_start]*len(lons)
+	keys = ['lat','lon','time']
+	float_list = [dict(zip(keys,list(x))) for x in zip(lats,lons,dates)]
+	pl = ParticleList()
+	for float_pos_dict in float_list:
+		uv_class.time.set_ref_date(float_pos_dict['time'])
+		data,dimensions = uv_class.return_parcels_uv(float_pos_dict['time']-datetime.timedelta(hours=1),days_delta=7)
+		prediction = UVPrediction(float_pos_dict,data,dimensions)
+		prediction.create_prediction(ArgoVerticalMovement600,days=6)
+		nc = ParticleDataset('/Users/paulchamberlain/Projects/HyperNav/Pipeline/Compute/RunParcels/tmp/Uniform_out.nc')
+		pl.append(nc)
+	plt.rcParams["figure.figsize"] = (15,15)
+
+	from matplotlib.colors import LinearSegmentedColormap
+	KonaCartopy.llcrnrlon=-156.6
+	KonaCartopy.llcrnrlat=19.2
+	KonaCartopy.urcrnrlon=-156
+	KonaCartopy.urcrnrlat=19.8
+
+	
+	r_start = 0.0
+	g_start = 0.5
+	b_start = 0.5
+	delta = 0.08
+	cdict = {'red':  ((r_start, g_start, b_start),
+			(r_start+0.2, g_start+delta, b_start+delta),
+			(r_start+0.4, g_start+2*delta, b_start+2*delta),
+			(r_start+0.6, g_start+3*delta, b_start+3*delta),
+			(r_start+0.8, g_start+4*delta, b_start+4*delta),
+			(r_start+1.0, g_start+5*delta, b_start+5*delta)),
+
+	 'green':((r_start, g_start, b_start),
+			(r_start+0.2, g_start+delta, b_start+delta),
+			(r_start+0.4, g_start+2*delta, b_start+2*delta),
+			(r_start+0.6, g_start+3*delta, b_start+3*delta),
+			(r_start+0.8, g_start+4*delta, b_start+4*delta),
+			(r_start+1.0, g_start+5*delta, b_start+5*delta)),
+
+	 'blue': ((r_start, g_start, b_start),
+			(r_start+0.2, g_start+delta, b_start+delta),
+			(r_start+0.4, g_start+2*delta, b_start+2*delta),
+			(r_start+0.6, g_start+3*delta, b_start+3*delta),
+			(r_start+0.8, g_start+4*delta, b_start+4*delta),
+			(r_start+1.0, g_start+5*delta, b_start+5*delta)),
+	}
+	bathy = LinearSegmentedColormap('bathy', cdict)
+	depth = ETopo1Depth.load().regional_subsample(KonaCartopy.urcrnrlon,KonaCartopy.llcrnrlon,KonaCartopy.urcrnrlat,KonaCartopy.llcrnrlat)
+	plot_data = -depth.z/1000.
+	XX,YY = np.meshgrid(depth.lon,depth.lat)
+	levels = [0,1,2,3,4,5,6]
+	lat_list = []
+	lon_list = []
+	for r,timedelta in enumerate([datetime.timedelta(hours=x) for x in range(24*6)]):
+		scatter_list = [x.get_cloud_center(timedelta) for x in pl]
+		lat,lon,lat_std,lon_std = zip(*scatter_list)
+		lat_list.append(list(lat))
+		lon_list.append(list(lon))
+		DUM,DUM,ax = KonaCartopy().get_map()
+		ax.scatter(lon,lat,marker='X',zorder=15)
+		ax.scatter(lon[16],lat[16],c='r',marker='X',zorder=16)
+
+		lat_holder = np.vstack(lat_list)
+		lon_holder = np.vstack(lon_list)
+		for k in range(lat_holder.shape[1]):
+			ax.plot(lon_holder[:,k],lat_holder[:,k],'b',alpha=0.2)
+		ax.plot(lon_holder[:,16],lat_holder[:,16],'r',zorder=16)
+
+		ax.contourf(XX,YY,plot_data,levels,cmap=bathy,animated=True,vmax=6,vmin=0)
+		plt.title(date_start+timedelta)
+		plt.savefig(file_handler.out_file('deployment_movie/'+str(r)))
+		plt.close()
+	os.chdir(file_handler.out_file('deployment_movie'))
+	os.system("ffmpeg -r 5 -i %01d.png -vcodec mpeg4 -y movie.mp4")
+
+
 def clear_days_prediction():
-	uv_class = HYCOMFutureHawaii.load()
+	uv_class = HYCOMFutureHawaii.load(datetime.datetime(2015,11,15),datetime.datetime(2016,3,15))
 	float_list = [({'lat':19.5,'lon':-156.4,'time':datetime.datetime(2015,11,15)},'site_1')]
 	dict_list = []
-	for month,filename in [(12,'percent_clear_days_Dec_Hawaii.h5'),(1,'percent_clear_days_Jan_Hawaii.h5')]:
+	for month,filename in [(12,'Dec'),(1,'Jan')]:
 		dict_list.append((month,ClearSky(filename)))
 	clear_sky_dict = dict(dict_list)
 	pl = ParticleList()
 	for float_pos_dict,filename in float_list:
 		uv_class.time.set_ref_date(float_pos_dict['time'])
-		for start_day in [5]*7:
+		for start_day in [5]*3:
 			float_pos_dict['time'] = float_pos_dict['time']+datetime.timedelta(days=start_day)
-			data,dimensions = uv_class.return_parcels_uv(float_pos_dict['time'],days_delta=30)
+			data,dimensions = uv_class.return_parcels_uv(float_pos_dict['time'],days_delta=61)
 			prediction = UVPrediction(float_pos_dict,data,dimensions)
-			prediction.create_prediction(ArgoVerticalMovement600,days=29.)
+			prediction.create_prediction(ArgoVerticalMovement600,days=60.)
 			nc = ParticleDataset('/Users/paulchamberlain/Projects/HyperNav/Pipeline/Compute/RunParcels/tmp/Uniform_out.nc')
 			pl.append(nc)
-		for k,timedelta in enumerate([datetime.timedelta(days=x) for x in range(27)]):
+		for k,timedelta in enumerate([datetime.timedelta(days=x) for x in range(59)]):
 			XX,YY,ax = uv_class.plot()
 			pl.plot_density(timedelta,[uv_class.lons,uv_class.lats],ax)
 			plt.savefig(file_handler.out_file('pdf_movie_'+filename+'/'+str(k)))
@@ -90,20 +176,41 @@ def clear_days_prediction():
 		os.chdir(file_handler.out_file('pdf_movie_'+filename+'/'))
 		os.system("ffmpeg -r 5 -i %01d.png -vcodec mpeg4 -y movie.mp4")
 		clear_sky_plot = []
-		for time_delta in [datetime.timedelta(days = x ) for x in np.arange(2,30,2).tolist()]:
+		aot_plot = []
+		aot_percent_plot = []
+		for time_delta in [datetime.timedelta(days = x ) for x in np.arange(2,60,2).tolist()]:
 			lats,lons = pl.get_cloud_snapshot(time_delta)
 			time = pl.get_time(time_delta)
 			clear_sky_holder = [clear_sky_dict[12].return_clear_sky(y,x) for x,y,t in zip(lons,lats,time)]
 			clear_sky_plot.append((time_delta.days,np.nanmean(clear_sky_holder)))
+			aot_holder = [clear_sky_dict[12].return_aot(y,x) for x,y,t in zip(lons,lats,time)]
+			aot_plot.append((time_delta.days,np.nanmean(aot_holder)))
+			aot_percent_holder = [clear_sky_dict[12].return_aot_percent(y,x) for x,y,t in zip(lons,lats,time)]
+			aot_percent_plot.append((time_delta.days,np.nanmean(aot_percent_holder)))			
 		days,sky = zip(*clear_sky_plot)
 		Y = np.cumsum(np.array(sky)*.02)
 		plt.plot(days,Y)
+		plt.subplot(2,1,1)
 		plt.xlabel('Days')
-		plt.ylabel('Cumulative Chance of Clear Sky')
-		plt.savefig('cumulative_clear_sky')
-		plt.close()
+		plt.ylabel('Cumulative Chance of Clear Sky (%)')
+		plt.plot(days,Y)
+		plt.subplot(2,1,2)
 		plt.plot(days,sky)
 		plt.xlabel('Days')
-		plt.ylabel('Chance of Clear Sky')
+		plt.ylabel('Chance of Clear Sky (%)')
 		plt.savefig('clear_sky')
+		plt.close()
+		days,sky = zip(*aot_percent_plot)
+		Y = np.cumsum(np.array(sky)*.02)
+		plt.plot(days,Y*100)
+		plt.subplot(2,1,1)
+		plt.xlabel('Days')
+		plt.ylabel('Cumulative Chance of Low AOT (%)')
+		plt.plot(days,Y)
+		plt.subplot(2,1,2)
+		plt.plot(days,sky)
+		plt.xlabel('Days')
+		plt.ylabel('Chance of Low AOT (%)')
+		plt.savefig('aot')
+		plt.close()
 		plt.close()

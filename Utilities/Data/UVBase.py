@@ -88,11 +88,15 @@ class Base(object):
 		u_list = []
 		v_list = []
 		time_list = []
-		for k in time_idx_list:
+		for k in time_idx_list[:-1]:
 			print(k)
 			k_filename = cls.file_handler.tmp_file(cls.dataset_description+'_'+cls.location+'_data/'+str(k))
-			with open(k_filename, 'rb') as f:
-				uv_dict = pickle.load(f)
+			try:
+				with open(k_filename, 'rb') as f:
+					uv_dict = pickle.load(f)
+			except FileNotFoundError:
+				print(k_filename+' not found')
+				continue
 			u_list.append(uv_dict['u'])
 			v_list.append(uv_dict['v'])
 			time_list.append(time.time_list_from_seconds(uv_dict['time']))
@@ -169,6 +173,7 @@ class Base(object):
 			print(k)
 			k_filename = cls.file_handler.tmp_file(cls.dataset_description+'_'+cls.location+'_data/'+str(k))
 			if os.path.isfile(k_filename):
+				k +=1
 				continue
 			try:
 				u_holder = dataset['water_u'][idx_list[k]:idx_list[k+1]
