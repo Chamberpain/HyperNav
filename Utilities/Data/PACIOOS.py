@@ -2,8 +2,8 @@ import datetime
 import numpy as np
 from GeneralUtilities.Compute.list import find_nearest, TimeList
 from parcels import DiffusionUniformKh, FieldSet, ParticleSet, Variable, JITParticle, AdvectionRK4,AdvectionDiffusionM1, plotTrajectoriesFile
-from HyperNav.Utilities.Compute.run_parcels import ArgoVerticalMovement700,ArgoVerticalMovement600,ArgoVerticalMovement500,ArgoVerticalMovement400,ArgoVerticalMovement300,ArgoVerticalMovement200,ArgoVerticalMovement100,ArgoVerticalMovement50,ArgoParticle
-from HyperNav.Utilities.Data.float_position import return_float_pos_dict,return_float_pos_list
+from HyperNav.Utilities.Compute.ArgoBehavior import ArgoVerticalMovement700,ArgoVerticalMovement600,ArgoVerticalMovement500,ArgoVerticalMovement400,ArgoVerticalMovement300,ArgoVerticalMovement200,ArgoVerticalMovement100,ArgoVerticalMovement50
+from HyperNav.Utilities.Data.API import SiteAPI
 from GeneralUtilities.Data.depth.depth_utilities import PACIOOS as Depth
 from GeneralUtilities.Plot.Cartopy.eulerian_plot import HypernavCartopy
 import matplotlib.pyplot as plt
@@ -12,18 +12,55 @@ from HyperNav.Utilities.Data.__init__ import ROOT_DIR
 from GeneralUtilities.Filepath.instance import FilePathHandler
 import os
 import requests
-
+from pydap.client import open_url
+from GeneralUtilities.Plot.Cartopy.regional_plot import KonaCartopy
 
 vert_move_dict={50:ArgoVerticalMovement50,100:ArgoVerticalMovement100,200:ArgoVerticalMovement200,
 				300:ArgoVerticalMovement300,400:ArgoVerticalMovement400,500:ArgoVerticalMovement500,
 				600:ArgoVerticalMovement600,700:ArgoVerticalMovement700}
 
+
+
+
 file_handler = FilePathHandler(ROOT_DIR,'PACIOOS')
 
-class PACIOOSDataOpenAndParse(DatasetOpenAndParse):
+class PACIOOSDataOpenAndParse(object):
 	base_html = 'https://pae-paha.pacioos.hawaii.edu/erddap/griddap/'
-	def __init__(self,float_pos_dict,*args,**kwargs):
-		super().__init__(float_pos_dict,*args,**kwargs)
+	def __init__(self,float_pos_dict):
+		plot_pad = 3
+		self.float_pos_dict = float_pos_dict
+		self.dataset = open_url(self.base_html+self.ID)
+		#open dataset using erdap server
+		time_since = datetime.datetime.strptime(self.dataset['time'].attributes['time_origin'],'%d-%b-%Y %H:%M:%S')
+
+		self.time = list(self.dataset['time'][:])
+		time_in_datetime = [time_since+datetime.timedelta(seconds=x) for x in self.time]
+		lats = list(self.dataset['latitude'][:])
+		lons = self.dataset['longitude'][:].data
+		lons[lons>180] = lons[lons>180]-360
+		lons = list(lons)
+
+		self.higher_lon_idx = lons.index(find_nearest(lons,float_pos_dict['lon']+plot_pad))
+		self.lower_lon_idx = lons.index(find_nearest(lons,float_pos_dict['lon']-plot_pad))
+		self.lons = lons[self.lower_lon_idx:self.higher_lon_idx]
+
+		self.higher_lat_idx = lats.index(find_nearest(lats,float_pos_dict['lat']+plot_pad))
+		self.lower_lat_idx = lats.index(find_nearest(lats,float_pos_dict['lat']-plot_pad))
+		self.lats = lats[self.lower_lat_idx:self.higher_lat_idx]
+
+		attribute_dict = self.dataset.attributes['NC_GLOBAL']
+		self.time_end = datetime.datetime.strptime(attribute_dict['time_coverage_end'],'%Y-%m-%dT%H:%M:%SZ')
+		#define necessary variables from self describing netcdf 
+
+		todays_date = float_pos_dict['datetime'].date()
+		todays_date = datetime.datetime.fromordinal(todays_date.toordinal())
+		date_array = np.array([todays_date+datetime.timedelta(hours=x) for x in self.hours_list])
+		time_diff_list = [abs(x.total_seconds()) for x in (date_array-float_pos_dict['datetime'])]
+		closest_idx = time_diff_list.index(min(time_diff_list))
+		closest_datetime = todays_date+datetime.timedelta(hours=self.hours_list[closest_idx])
+		self.time_idx = time_in_datetime.index(closest_datetime)
+		self.time = TimeList(time_in_datetime)
+		self.time.set_ref_date(time_since)
 
 class ReturnPACIOOSUV(PACIOOSDataOpenAndParse):
 	hours_list = np.arange(0,25,3).tolist()
@@ -82,7 +119,63 @@ class ReturnPACIOOSWeather(PACIOOSDataOpenAndParse):
 		,self.lower_lon_idx:self.higher_lon_idx].data[0]
 
 
+def special_happy_navigation_time():
+	float_pos_dict = {'lat':19.9313,'lon':-156.5501,'datetime':datetime.datetime(2021,11,20,22,45)}
+	uv = ReturnPACIOOSUV(float_pos_dict)
+	pl = ParticleList()
+	prediction = UVPrediction(float_pos_dict,uv.data,uv.dimensions)
+	for float_behavior in [AltArgoVerticalMovement25,AltArgoVerticalMovement50,AltArgoVerticalMovement75,AltArgoVerticalMovement100,AltArgoVerticalMovement125]:
+		prediction.create_prediction(float_behavior,days=2)
+		nc = ParticleDataset('/Users/paulchamberlain/Projects/HyperNav/Pipeline/Compute/RunParcels/tmp/Uniform_out.nc')
+		pl.append(nc)
+	from matplotlib.colors import LinearSegmentedColormap
+	KonaCartopy.llcrnrlon=float_pos_dict['lon']-.5
+	KonaCartopy.llcrnrlat=float_pos_dict['lat']-.5
+	KonaCartopy.urcrnrlon=float_pos_dict['lon']+.5
+	KonaCartopy.urcrnrlat=float_pos_dict['lat']+.5
 
+
+	
+	r_start = 0.0
+	g_start = 0.5
+	b_start = 0.5
+	delta = 0.08
+	cdict = {'red':  ((r_start, g_start, b_start),
+			(r_start+0.2, g_start+delta, b_start+delta),
+			(r_start+0.4, g_start+2*delta, b_start+2*delta),
+			(r_start+0.6, g_start+3*delta, b_start+3*delta),
+			(r_start+0.8, g_start+4*delta, b_start+4*delta),
+			(r_start+1.0, g_start+5*delta, b_start+5*delta)),
+
+	 'green':((r_start, g_start, b_start),
+			(r_start+0.2, g_start+delta, b_start+delta),
+			(r_start+0.4, g_start+2*delta, b_start+2*delta),
+			(r_start+0.6, g_start+3*delta, b_start+3*delta),
+			(r_start+0.8, g_start+4*delta, b_start+4*delta),
+			(r_start+1.0, g_start+5*delta, b_start+5*delta)),
+
+	 'blue': ((r_start, g_start, b_start),
+			(r_start+0.2, g_start+delta, b_start+delta),
+			(r_start+0.4, g_start+2*delta, b_start+2*delta),
+			(r_start+0.6, g_start+3*delta, b_start+3*delta),
+			(r_start+0.8, g_start+4*delta, b_start+4*delta),
+			(r_start+1.0, g_start+5*delta, b_start+5*delta)),
+	}
+	bathy = LinearSegmentedColormap('bathy', cdict)	
+
+	depth = ETopo1Depth.load().regional_subsample(KonaCartopy.urcrnrlon,KonaCartopy.llcrnrlon,KonaCartopy.urcrnrlat,KonaCartopy.llcrnrlat)
+	plot_data = -depth.z/1000.
+	XX,YY = np.meshgrid(depth.lon,depth.lat)
+	levels = [0,1,2,3,4,5,6]
+	DUM,DUM,ax = KonaCartopy().get_map()
+	ax.contourf(XX,YY,plot_data,levels,cmap=bathy,animated=True,vmax=6,vmin=0)
+
+	for particle,name in zip(pl,['25 m','50 m','75 m','100 m','125 m','200m']):
+		point_list = [particle.get_cloud_center(datetime.timedelta(hours=int(x))) for x in np.arange(0,120,6)]
+		lats,lons, DUM,DUM = zip(*point_list)
+		ax.plot(lons,lats,label=name)
+	plt.legend(loc='lower left')
+	plt.savefig('happy_funtime_argo_navigation')
 
 def make_forecast():
 	for float_pos_dict in return_float_pos_list():
@@ -227,11 +320,6 @@ def weather_maps():
 	os.system('ffmpeg -f image2 -r 2 -i %d.png -c:v libx264 -pix_fmt yuv420p ../rain_moby.mp4')
 	os.chdir(file_handler.tmp_file('waves_moby'))
 	os.system('ffmpeg -f image2 -r 2 -i %d.png -c:v libx264 -pix_fmt yuv420p ../waves_moby.mp4')
-
-
-
-
-
 
 
 pword = 'n5vkJ?lw\EmdidlJ'

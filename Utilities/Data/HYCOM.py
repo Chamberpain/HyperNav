@@ -1,6 +1,7 @@
-from HyperNav.Utilities.Data.UVBase import Base
-from GeneralUtilities.Plot.Cartopy.regional_plot import KonaCartopy,PuertoRicoCartopy, TahitiCartopy
+from HyperNav.Utilities.Data.UVBase import Base, UVTimeList
+from GeneralUtilities.Plot.Cartopy.regional_plot import CreteCartopy,KonaCartopy,PuertoRicoCartopy, TahitiCartopy
 from GeneralUtilities.Data.depth.depth_utilities import PACIOOS,ETopo1Depth
+from HyperNav.Utilities.Compute.RunParcels import UVPrediction,ParticleDataset,ParticleList,ClearSky
 import numpy as np 
 import datetime
 from HyperNav.Utilities.Data.__init__ import ROOT_DIR
@@ -19,8 +20,65 @@ class HYCOMBase(Base):
 	base_html = 'https://www.ncei.noaa.gov/erddap/griddap/'
 	file_handler = file_handler
 	def __init__(self,*args,**kwargs):
-		super().__init__(units='m/s',*args,**kwargs)
+		super().__init__(*args,**kwargs)
 		self.time.set_ref_date(datetime.datetime(1970,1,1))
+
+	@classmethod
+	def get_dimensions(cls):
+		dataset = open_url(cls.base_html+cls.ID)
+		#open dataset using erdap server
+		time_since = datetime.datetime.strptime(dataset['time'].attributes['time_origin'],'%d-%b-%Y %H:%M:%S')
+		UVTimeList.set_ref_date(time_since)
+		time = UVTimeList.time_list_from_seconds(dataset['time'][:])
+		lats = LatList(dataset['latitude'][:])
+		lons = dataset['longitude'][:].data
+		lons[lons>180] = lons[lons>180]-360
+		lons = LonList(lons)
+		depth = -dataset['depth'][:].data
+		depth = DepthList(depth)
+		depth_idx = depth.find_nearest(-700,idx=True)
+		depth = depth[:(depth_idx+1)]
+		higher_lon_idx = lons.find_nearest(cls.urlon,idx=True)
+		lower_lon_idx = lons.find_nearest(cls.lllon,idx=True)
+		lons = lons[lower_lon_idx:higher_lon_idx]
+		higher_lat_idx = lats.find_nearest(cls.urlat,idx=True)
+		lower_lat_idx = lats.find_nearest(cls.lllat,idx=True)
+		lats = lats[lower_lat_idx:higher_lat_idx]
+		units = dataset['water_u'].attributes['units']
+		return (time,lats,lons,depth,lower_lon_idx,higher_lon_idx,lower_lat_idx,higher_lat_idx,units)
+
+
+	@classmethod
+	def download_and_save(cls):
+		dataset = open_url(cls.base_html+cls.ID)
+		#open dataset using erdap server
+		time,lats,lons,depth,lower_lon_idx,higher_lon_idx,lower_lat_idx,higher_lat_idx,units = cls.get_dimensions()
+		#define necessary variables from self describing netcdf 
+		attribute_dict = dataset.attributes['NC_GLOBAL']
+
+		idx_list = time.return_time_list()
+		k = 0
+		while k < len(idx_list)-1:
+			print(k)
+			k_filename = cls.file_handler.tmp_file(cls.dataset_description+'_'+cls.location+'_data/'+str(k))
+			if os.path.isfile(k_filename):
+				k +=1
+				continue
+			try:
+				u_holder = dataset['water_u'][idx_list[k]:idx_list[k+1]
+				,:(len(depth))
+				,lower_lat_idx:higher_lat_idx
+				,lower_lon_idx:higher_lon_idx]
+				v_holder = dataset['water_v'][idx_list[k]:idx_list[k+1]
+				,:(len(depth))
+				,lower_lat_idx:higher_lat_idx
+				,lower_lon_idx:higher_lon_idx]
+				with open(k_filename, 'wb') as f:
+					pickle.dump({'u':u_holder['water_u'].data,'v':v_holder['water_v'].data, 'time':u_holder['time'].data},f)
+				k +=1
+			except:
+				print('Index ',k,' encountered an error and did not save. Trying again')
+				continue
 
 class HYCOMHawaii(HYCOMBase):
 	location='Hawaii'
@@ -76,6 +134,30 @@ class HYCOMTDS(Base):
 	def __init__(self,*args,**kwargs):
 		super().__init__(*args,**kwargs)
 		# self.time.set_ref_date(datetime.datetime(1970,1,1))
+
+
+	@classmethod
+	def get_dimensions(cls):
+		dataset = open_url(cls.hindcast[0])
+		#open dataset using erdap server
+		time_since = datetime.datetime.strptime(dataset['time'].attributes['time_origin'],'%Y-%m-%d %H:%M:%S')
+		UVTimeList.set_ref_date(time_since)
+		time = UVTimeList.time_list_from_seconds(dataset['time'][:])
+		lats = LatList(dataset['lat'][:])
+		lons = dataset['lon'][:].data
+		lons[lons>180] = lons[lons>180]-360
+		lons = LonList(lons)
+		depth = -dataset['depth'][:].data
+		depth = DepthList(depth)
+		depth_idx = depth.find_nearest(-2000,idx=True)
+		depth = depth[:(depth_idx+1)]
+		higher_lon_idx = lons.find_nearest(cls.urlon,idx=True)
+		lower_lon_idx = lons.find_nearest(cls.lllon,idx=True)
+		lons = lons[lower_lon_idx:higher_lon_idx]
+		higher_lat_idx = lats.find_nearest(cls.urlat,idx=True)
+		lower_lat_idx = lats.find_nearest(cls.lllat,idx=True)
+		lats = lats[lower_lat_idx:higher_lat_idx]
+		return (time,lats,lons,depth,lower_lon_idx,higher_lon_idx,lower_lat_idx,higher_lat_idx,dataset['water_u'].units)
 
 
 	@classmethod
@@ -200,10 +282,6 @@ class HYCOMTDS(Base):
 		higher_lat_idx = lats.find_nearest(cls.urlat,idx=True)
 		lower_lat_idx = lats.find_nearest(cls.lllat,idx=True)
 		lats = lats[lower_lat_idx:higher_lat_idx]
-		#define necessary variables from self describing netcdf 
-		attribute_dict = dataset.attributes['NC_GLOBAL']
-		time_end = datetime.datetime.strptime(attribute_dict['time_coverage_end'],'%Y-%m-%dT%H:%M:%SZ')
-
 
 		time_idx_list = list(range(len(time))[::100])+[len(time)]
 		u_list = []
@@ -244,4 +322,14 @@ class HYCOMTahiti(HYCOMTDS):
 	location = 'Tahiti'
 	ID = 'hawaii_soest_a2d2_f95d_0258'
 	PlotClass = TahitiCartopy
+	DepthClass = ETopo1Depth
+
+class HYCOMCrete(HYCOMTDS):
+	urlon = 30
+	lllon = 20
+	urlat = 41
+	lllat = 31
+	location = 'Crete'
+	ID = 'hawaii_soest_a2d2_f95d_0258'
+	PlotClass = CreteCartopy
 	DepthClass = ETopo1Depth

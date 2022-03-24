@@ -1,4 +1,4 @@
-from parcels import DiffusionUniformKh, FieldSet, ParticleSet, Variable, JITParticle, AdvectionRK4,AdvectionDiffusionM1, plotTrajectoriesFile
+from parcels import DiffusionUniformKh, FieldSet, ParticleSet, Variable, JITParticle, AdvectionRK4,AdvectionDiffusionM1, plotTrajectoriesFile, ErrorCode
 from HyperNav.Utilities.Compute.ArgoBehavior import ArgoVerticalMovement700,ArgoVerticalMovement600,ArgoVerticalMovement500,ArgoVerticalMovement400,ArgoVerticalMovement300,ArgoVerticalMovement200,ArgoVerticalMovement100,ArgoVerticalMovement50
 import numpy as np
 from HyperNav.Utilities.Compute.__init__ import ROOT_DIR
@@ -35,13 +35,13 @@ class ClearSky():
 		return np.random.normal(loc=data[lat_idx,lon_idx],scale=std[lat_idx,lon_idx])
 
 	def return_aot_percent(self,lat,lon):
-		return self.return_data(self.percent_clear['percent AOT869<=0.1 (mean)'],self.percent_clear['percent AOT869<=0.1 (std)'],lat,lon)
+		return self.return_data(self.percent_aot['percent AOT869<=0.1 (mean)'],self.percent_aot['percent AOT869<=0.1 (std)'],lat,lon)
 		 	
 	def return_aot(self,lat,lon):
 		return self.return_data(self.aot['AOT869 (mean)'],self.aot['AOT869 (std)'],lat,lon)
 
 	def return_clear_sky(self,lat,lon):
-		return self.return_data(self.percent_aot['percent clear days (mean)'],self.percent_aot['percent clear days (std)'],lat,lon)
+		return self.return_data(self.percent_clear['percent clear days (mean)'],self.percent_clear['percent clear days (std)'],lat,lon)
 
 class ParticleList(list):
 
@@ -78,8 +78,6 @@ class ParticleDataset(Dataset):
 
 	def total_coords(self):
 		return (self.variables['lat'][:],self.variables['lon'][:])
-
-
 
 	def get_cloud_snapshot(self,timedelta):
 		time_idx = self.time_idx(timedelta)
@@ -151,6 +149,8 @@ def get_test_particles(fieldset,float_pos_dict,start_time):
 								 time=[start_time]*particle_num,
 								 depth=[10]*particle_num # start particles at 10m depth
 								 )
+def DeleteParticle(particle, fieldset, time):
+    particle.delete()
 
 class UVPrediction():
 
@@ -167,13 +167,14 @@ class UVPrediction():
 		fieldset.add_constant('Kh_zonal',K_bar)
 		testParticles = get_test_particles(fieldset,self.float_pos_dict,self.dimensions['time'][0])
 		kernels = vert_move + testParticles.Kernel(AdvectionRK4)
-		dt = 15 #15 minute timestep
+		dt = 10 #10 minute timestep
 		output_file = testParticles.ParticleFile(name=file_handler.tmp_file('Uniform_out.nc'),
 			outputdt=datetime.timedelta(minutes=dt))
 		testParticles.execute(kernels,
 							  runtime=datetime.timedelta(days=days),
 							  dt=datetime.timedelta(minutes=dt),
-							  output_file=output_file,)
+							  output_file=output_file,
+							  recovery={ErrorCode.ErrorOutOfBounds: DeleteParticle})
 		output_file.export()
 		output_file.close()
 

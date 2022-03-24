@@ -66,13 +66,12 @@ def ArgoVerticalMovement(particle, fieldset, time):
 
 
 
-lat_list = [27.98,26.56,25.66,25.56,25.47,24.66]
-lon_list = [-86.99,-86.88,-86.60,-86.34,-85.08,-84.79]
+
 
 class GOMCartopy(RegionalBase):
-	llcrnrlon=-86
-	llcrnrlat=20
-	urcrnrlon=-82
+	llcrnrlon=-87
+	llcrnrlat=23
+	urcrnrlon=-84
 	urcrnrlat=25
 	def __init__(self,*args,**kwargs):
 		print('I am plotting GOM')
@@ -115,7 +114,8 @@ class HYCOMGOM(HYCOMBase):
 		higher_lat_idx = lats.find_nearest(cls.urlat,idx=True)
 		lower_lat_idx = lats.find_nearest(cls.lllat,idx=True)
 		lats = lats[lower_lat_idx:higher_lat_idx]
-		return (time,lats,lons,depth,lower_lon_idx,higher_lon_idx,lower_lat_idx,higher_lat_idx)
+		units = dataset['water_u'].attributes['units']
+		return (time,lats,lons,depth,lower_lon_idx,higher_lon_idx,lower_lat_idx,higher_lat_idx,units)
 
 date_start = datetime.datetime(2020,11,1)
 date_end = datetime.datetime(2020,12,1)
@@ -153,7 +153,7 @@ def gom_mean_monthly_plot():
 	plt.savefig(file_handler.out_file('monthly_mean_quiver'))
 	plt.close()
 
-def hawaii_quiver_movie():
+def gom_quiver_movie():
 	uv_class = HYCOMGOM.load(date_start,date_end)
 	mask = [(x>datetime.datetime(2020,11,1))&(x<datetime.datetime(2020,12,1)) for x in uv_class.time]
 	shallow = -1000
@@ -188,14 +188,14 @@ def hawaii_quiver_movie():
 
 
 
-def hawaii_shear_movie():
+def gom_shear_movie():
 	uv_class = HYCOMGOM.load(date_start,date_end)
 	lat = 24.662
 	lon = -84.794
 	mask = [(x>datetime.datetime(2020,11,1))&(x<datetime.datetime(2020,11,30)) for x in uv_class.time]
 	shear_movie(uv_class,mask,file_handler,lat,lon)
 
-def hawaii_eke():
+def gom_eke():
 	uv_class = HYCOMGOM.load(date_start,date_end)
 	shallow = 0
 	deep = -1500
@@ -227,6 +227,50 @@ def hawaii_eke():
 	fig.colorbar(PCM,ax=[ax1,ax2],pad=.05,label='Eddy Kinetic Energy ($m^2 s^{-2}$)',location='bottom')
 	plt.savefig(file_handler.out_file('eke_plot'))
 	plt.close()
+
+def future_prediction():
+	date_start = datetime.datetime(2022,3,3)
+	date_end = datetime.datetime(2022,3,10)
+	uv_class = HYCOMGOM.load(date_start-datetime.timedelta(days=1),date_end)
+	lats = [23.861]
+	lons = [-85.158]
+	dates = [datetime.datetime(2022,3,3)]
+	dates = [date_start]*len(lons)
+	keys = ['lat','lon','time']
+	float_list = [dict(zip(keys,list(x))) for x in zip(lats,lons,dates)]
+	pl = ParticleList()
+	for float_pos_dict in float_list:
+		uv_class.time.set_ref_date(float_pos_dict['time'])
+		data,dimensions = uv_class.return_parcels_uv(float_pos_dict['time']-datetime.timedelta(hours=1),days_delta=7)
+		prediction = UVPrediction(float_pos_dict,data,dimensions)
+		prediction.create_prediction(ArgoVerticalMovement600,days=4.5)
+		nc = ParticleDataset('/Users/paulchamberlain/Projects/HyperNav/Pipeline/Compute/RunParcels/tmp/Uniform_out.nc')
+		pl.append(nc)
+	plt.rcParams["figure.figsize"] = (15,15)
+	lat_list = []
+	lon_list = []
+	for r,timedelta in enumerate([datetime.timedelta(hours=int(x)) for x in range(int(24*4.5))[::3]]):
+		scatter_list = [x.get_cloud_center(timedelta) for x in pl]
+		lat,lon,lat_std,lon_std = zip(*scatter_list)
+		lat_list.append(list(lat))
+		lon_list.append(list(lon))
+		XX,YY,ax = uv_class.plot()
+		ax.scatter(lon,lat,s=80,marker='X',zorder=15)
+
+		lat_holder = np.vstack(lat_list)
+		lon_holder = np.vstack(lon_list)
+		for k in range(lat_holder.shape[1]):
+			ax.plot(lon_holder[:,k],lat_holder[:,k],'b',alpha=0.8,linewidth=3)
+		plt.title(date_start+timedelta)
+		plt.savefig(file_handler.out_file('deployment_movie/'+str(r)))
+		plt.close()
+	os.chdir(file_handler.out_file('deployment_movie'))
+	os.system("ffmpeg -r 5 -i %01d.png -vcodec mpeg4 -y movie.mp4")
+
+
+
+
+
 
 def GOM_particles_compute():
 	uv_class = HYCOMGOM
