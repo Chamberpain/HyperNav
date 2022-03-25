@@ -4,6 +4,7 @@ import datetime
 from GeneralUtilities.Filepath.instance import FilePathHandler
 from HyperNav.Utilities.FieldDeployments.FieldDeploymentBase import mean_monthly_plot,quiver_movie,shear_movie,eke_plots,pdf_particles_compute
 from HyperNav.Utilities.Compute.RunParcels import UVPrediction,ParticleDataset
+from HyperNav.Utilities.Utilities import nc_file
 import cartopy.crs as ccrs
 import numpy as np
 import os
@@ -244,7 +245,7 @@ def future_prediction():
 		data,dimensions = uv_class.return_parcels_uv(float_pos_dict['time']-datetime.timedelta(hours=1),days_delta=7)
 		prediction = UVPrediction(float_pos_dict,data,dimensions)
 		prediction.create_prediction(ArgoVerticalMovement600,days=4.5)
-		nc = ParticleDataset('/Users/paulchamberlain/Projects/HyperNav/Pipeline/Compute/RunParcels/tmp/Uniform_out.nc')
+		nc = ParticleDataset(nc_file)
 		pl.append(nc)
 	plt.rcParams["figure.figsize"] = (15,15)
 	lat_list = []
@@ -284,7 +285,7 @@ def GOM_particles_compute():
 			data,dimensions = uv.return_parcels_uv(float_pos_dict['time'],days_delta=52)
 			prediction = UVPrediction(float_pos_dict,data,dimensions)
 			prediction.create_prediction(ArgoVerticalMovement,days=50.)
-			nc = ParticleDataset('/Users/paulchamberlain/Projects/HyperNav/Pipeline/Compute/RunParcels/tmp/Uniform_out.nc')
+			nc = ParticleDataset(nc_file)
 			pl.append(nc)
 
 	for k,timedelta in enumerate([datetime.timedelta(days=x) for x in range(50)]):

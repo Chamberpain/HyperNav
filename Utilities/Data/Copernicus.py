@@ -25,7 +25,6 @@ class Copernicus(Base):
 	dataset_description = 'Copernicus'
 	location = 'Crete'
 	base_html = 'https://nrt.cmems-du.eu/thredds/dodsC/'
-	ID = 'med-cmcc-cur-an-fc-h'
 	PlotClass = CreteCartopy
 	DepthClass = ETopo1Depth
 	file_handler = FilePathHandler(ROOT_DIR,'Copernicus')
@@ -38,14 +37,22 @@ class Copernicus(Base):
 		self.time.set_ref_date(time_since)
 
 	@classmethod
-	def get_dataset(cls):
+	def get_dataset(cls,ID = 'med-cmcc-cur-an-fc-h'):
 		username = 'pchamberlain'
 		password = 'xixhyg-hebju7-jeBmaf'
 		cas_url = 'https://cmems-cas.cls.fr/cas/login'
 		session = setup_session(cas_url, username, password)
 		session.cookies.set("CASTGC", session.cookies.get_dict()['CASTGC'])
-		url = cls.base_html+cls.ID
+		url = cls.base_html+ID
 		return open_url(url, session=session)
+
+	# def get_temp():
+	# 	self.get_dataset(ID = 'med-cmcc-sal-an-fc-h')
+
+
+	# def get_sal():
+
+
 
 
 	@classmethod
