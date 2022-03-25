@@ -4,7 +4,7 @@ from HyperNav.Utilities.Data.Copernicus import Copernicus
 import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
 
-nc_file = ROOT_DIR+'/../../Pipeline/Compute/RunParcels/tmp/Uniform_out.nc'
+nc_file = ROOT_DIR+'/../Pipeline/Compute/RunParcels/tmp/Uniform_out.nc'
 
 class EEZ(object):
 	def __init__(self):
