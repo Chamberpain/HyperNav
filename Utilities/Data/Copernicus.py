@@ -46,12 +46,38 @@ class Copernicus(Base):
 		url = cls.base_html+ID
 		return open_url(url, session=session)
 
-	# def get_temp():
-	# 	self.get_dataset(ID = 'med-cmcc-sal-an-fc-h')
 
+	@classmethod
+	def get_sal_temp_profiles(cls,lat,lon,start_date,end_date):
+		time,lats,lons,depth,lower_lon_idx,higher_lon_idx,lower_lat_idx,higher_lat_idx,units = cls.get_dimensions()
+		lon_idx = lons.find_nearest(lon,idx=True)
+		lat_idx = lats.find_nearest(lat,idx=True)
+		depth_idx = depth.find_nearest(-700,idx=True)
+		time_start_idx = time.find_nearest(start_date,idx=True)
+		time_end_idx = time.find_nearest(end_date,idx=True)
 
-	# def get_sal():
+		data_list = []
+		for var,ID in [('so','med-cmcc-sal-an-fc-h'),('thetao','med-cmcc-tem-an-fc-h')]:
+			dataset = cls.get_dataset(ID = ID)
+			profile = dataset[var].data[0][time_start_idx:time_end_idx,:depth_idx,lat_idx,lon_idx]
+			data_list.append(profile.mean(axis=0).flatten())
 
+		fig, ax1 = plt.subplots()
+		color = 'tab:red'
+		ax1.set_xlabel('Salinity (psu)', color=color)
+		ax1.set_ylabel('Depth (m)')
+		ax1.plot(data_list[0], depth[:depth_idx], color=color)
+		ax1.tick_params(axis='x', labelcolor=color)
+
+		ax2 = ax1.twiny()  # instantiate a second axes that shares the same x-axis
+
+		color = 'tab:blue'
+		ax2.set_xlabel('Temperature (c)', color=color)  # we already handled the x-label with ax1
+		ax2.plot(data_list[1], depth[:depth_idx], color=color)
+		ax2.tick_params(axis='x', labelcolor=color)
+
+		fig.tight_layout()  # otherwise the right y-label is slightly clipped
+		plt.show()
 
 
 

@@ -230,27 +230,27 @@ def gom_eke():
 	plt.close()
 
 def future_prediction():
-	date_start = datetime.datetime(2022,3,3)
-	date_end = datetime.datetime(2022,3,10)
+	date_start = datetime.datetime(2022,3,17)
+	date_end = datetime.datetime(2022,3,28)
 	uv_class = HYCOMGOM.load(date_start-datetime.timedelta(days=1),date_end)
-	lats = [23.861]
-	lons = [-85.158]
-	dates = [datetime.datetime(2022,3,3)]
+	lats = [23.807]
+	lons = [-85.762]
+	dates = [datetime.datetime(2022,3,14)]
 	dates = [date_start]*len(lons)
 	keys = ['lat','lon','time']
 	float_list = [dict(zip(keys,list(x))) for x in zip(lats,lons,dates)]
 	pl = ParticleList()
 	for float_pos_dict in float_list:
 		uv_class.time.set_ref_date(float_pos_dict['time'])
-		data,dimensions = uv_class.return_parcels_uv(float_pos_dict['time']-datetime.timedelta(hours=1),days_delta=7)
+		data,dimensions = uv_class.return_parcels_uv(float_pos_dict['time']-datetime.timedelta(hours=1),days_delta=12)
 		prediction = UVPrediction(float_pos_dict,data,dimensions)
-		prediction.create_prediction(ArgoVerticalMovement600,days=4.5)
+		prediction.create_prediction(ArgoVerticalMovement,days=11)
 		nc = ParticleDataset(nc_file)
 		pl.append(nc)
 	plt.rcParams["figure.figsize"] = (15,15)
 	lat_list = []
 	lon_list = []
-	for r,timedelta in enumerate([datetime.timedelta(hours=int(x)) for x in range(int(24*4.5))[::3]]):
+	for r,timedelta in enumerate([datetime.timedelta(hours=int(x)) for x in range(int(24*10))[::3]]):
 		scatter_list = [x.get_cloud_center(timedelta) for x in pl]
 		lat,lon,lat_std,lon_std = zip(*scatter_list)
 		lat_list.append(list(lat))
