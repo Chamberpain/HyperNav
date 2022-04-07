@@ -230,12 +230,12 @@ def gom_eke():
 	plt.close()
 
 def future_prediction():
-	date_start = datetime.datetime(2022,3,17)
-	date_end = datetime.datetime(2022,3,28)
+	date_start = datetime.datetime(2022,3,28)
+	date_end = datetime.datetime(2022,4,9)
 	uv_class = HYCOMGOM.load(date_start-datetime.timedelta(days=1),date_end)
-	lats = [23.807]
-	lons = [-85.762]
-	dates = [datetime.datetime(2022,3,14)]
+	lats = [23.761]
+	lons = [-84.814]
+	dates = [datetime.datetime(2022,3,27)]
 	dates = [date_start]*len(lons)
 	keys = ['lat','lon','time']
 	float_list = [dict(zip(keys,list(x))) for x in zip(lats,lons,dates)]
