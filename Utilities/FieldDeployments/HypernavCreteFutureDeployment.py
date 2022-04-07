@@ -118,7 +118,25 @@ def mean_curl_plot():
 	curl(copernicus_instance,0)
 	curl(copernicus_instance,700)
 
-def PRParticlesCompute():
+def ts_plot():
+	lat = 35.8
+	lon = 25.0
+	start_date = datetime.datetime(2021,4,1)
+	end_date = datetime.datetime(2021,5,1)
+	fig,fig1 = Copernicus.get_sal_temp_profiles(lat,lon,start_date,end_date)
+	fig.savefig(file_handler.out_file('site_2_ts'))
+	fig1.savefig(file_handler.out_file('site_2_density'))
+
+
+def crete_shear_movie():
+	uv_class = 	Copernicus.load(datetime.datetime(2021,4,1),datetime.datetime(2021,5,1))
+	lat = 35.8
+	lon = 25.0
+	mask = [(x>datetime.datetime(2021,4,1))&(x<datetime.datetime(2021,5,1)) for x in uv_class.time]
+	shear_movie(uv_class,mask,file_handler,lat,lon)
+
+
+def CreteParticlesCompute():
 	time,lats,lons,depth,lower_lon_idx,higher_lon_idx,lower_lat_idx,higher_lat_idx,units = Copernicus.get_dimensions()
 	uv_class = 	copernicus_instance = Copernicus.load(datetime.datetime(2021,4,1),datetime.datetime(2021,5,20))
 	uv_class.depth[0]=0

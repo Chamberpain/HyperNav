@@ -4,6 +4,8 @@ from HyperNav.Utilities.Data.UVBase import Base,UVTimeList
 from GeneralUtilities.Compute.list import LatList, LonList, DepthList, flat_list
 from urllib.error import HTTPError
 from socket import timeout
+import matplotlib.pyplot as plt
+import gsw
 import os
 import pickle
 from pydap.client import open_url
@@ -11,7 +13,7 @@ from pydap.cas.get_cookies import setup_session
 from GeneralUtilities.Plot.Cartopy.regional_plot import CreteCartopy
 from GeneralUtilities.Data.depth.depth_utilities import ETopo1Depth
 import datetime
-
+import gsw
 
 class CopUVTimeList(UVTimeList):
 	def return_time_list(self):
@@ -29,7 +31,7 @@ class Copernicus(Base):
 	DepthClass = ETopo1Depth
 	file_handler = FilePathHandler(ROOT_DIR,'Copernicus')
 	time_method = CopUVTimeList.time_list_from_minutes
-
+	ID = 'med-cmcc-cur-an-fc-h'
 	def __init__(self,*args,**kwargs):
 		super().__init__(*args,**kwargs)
 		dataset = open_url(self.base_html+self.ID)
@@ -72,13 +74,18 @@ class Copernicus(Base):
 		ax2 = ax1.twiny()  # instantiate a second axes that shares the same x-axis
 
 		color = 'tab:blue'
-		ax2.set_xlabel('Temperature (c)', color=color)  # we already handled the x-label with ax1
+		ax2.set_xlabel(r'$\theta_0\ (c)$', color=color)  # we already handled the x-label with ax1
 		ax2.plot(data_list[1], depth[:depth_idx], color=color)
 		ax2.tick_params(axis='x', labelcolor=color)
 
 		fig.tight_layout()  # otherwise the right y-label is slightly clipped
-		plt.show()
-
+		gsw.p_from_z(depth,lat)
+		density = gsw.density.sigma0(data_list[0],data_list[1])
+		fig1, ax1 = plt.subplots()
+		ax1.plot(density,depth[:depth_idx])
+		plt.xlabel(r'$\sigma_0\ (kg\ m^{-3})$')
+		plt.ylabel('depth (m)')
+		return (fig,fig1)
 
 
 	@classmethod

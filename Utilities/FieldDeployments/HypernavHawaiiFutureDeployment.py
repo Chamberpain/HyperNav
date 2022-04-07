@@ -16,6 +16,46 @@ from GeneralUtilities.Data.depth.depth_utilities import ETopo1Depth
 
 file_handler = FilePathHandler(ROOT_DIR,'HypernavHawaiiFutureDeployment')
 
+def ArgoVerticalMovement250(particle, fieldset, time):
+	driftdepth = 250  # maximum depth in m
+	vertical_speed = 0.10  # sink and rise speed in m/s
+	cycletime = 1 * (14160)#-driftdepth/vertical_speed)  # total time of cycle in seconds
+	surftime = 24000  # time of deep drift in seconds
+	mindepth = 10
+
+	if particle.cycle_phase == 0:
+		# Phase 0: Sinking with vertical_speed until depth is driftdepth
+		particle.depth += vertical_speed * particle.dt
+		particle.cycle_age += particle.dt
+		if particle.depth >= driftdepth:
+			particle.cycle_phase = 1
+
+	elif particle.cycle_phase == 1:
+		# Phase 1: Drifting at depth for drifttime seconds
+		particle.cycle_age += particle.dt
+		if particle.cycle_age >= cycletime:
+			particle.cycle_phase = 3
+
+	elif particle.cycle_phase == 3:
+		# Phase 3: Rising with vertical_speed until at surface
+		particle.depth -= vertical_speed * particle.dt
+		particle.cycle_age += particle.dt
+		#particle.temp = fieldset.temp[time, particle.depth, particle.lat, particle.lon]  # if fieldset has temperature
+		if particle.depth <= mindepth:
+			particle.depth = mindepth
+			#particle.temp = 0./0.  # reset temperature to NaN at end of sampling cycle
+			particle.surf_age = 0
+			particle.cycle_phase = 4
+
+	elif particle.cycle_phase == 4:
+		# Phase 4: Transmitting at surface until cycletime is reached
+		particle.cycle_age += particle.dt
+		particle.surf_age += particle.dt
+		if particle.surf_age > surftime:
+			particle.cycle_phase = 0
+			particle.cycle_age = 0  # reset cycle_age for next cycle
+
+
 
 class FutureHawaiiCartopy(RegionalBase):
     llcrnrlon=-159
@@ -68,12 +108,14 @@ def hawaii_particles_compute():
 	pdf_particles_compute(uv_class,float_list,file_handler)
 
 def future_prediction():
-	date_start = datetime.datetime(2021,11,14)
-	date_end = datetime.datetime(2021,11,21)
-	HYCOMFutureHawaii.load(date_start-datetime.timedelta(days=1),date_end)
+	date_start = datetime.datetime(2022,4,1)
+	date_end = datetime.datetime(2022,4,8)
 	uv_class = HYCOMFutureHawaii.load(date_start-datetime.timedelta(days=1),date_end)
-	lats = np.arange(19.4,19.65,0.05)
-	lons = np.arange(-156.5,-156.2,0.05)
+	# lats = np.arange(19.4,19.75,0.05)
+	# lons = np.arange(-156.7,-156.2,0.05)
+	lats = [19.3321]
+	lons = [-156.1540]	
+
 	X,Y = np.meshgrid(lons,lats)
 	lons = X.flatten()
 	lats = Y.flatten()
@@ -85,16 +127,16 @@ def future_prediction():
 		uv_class.time.set_ref_date(float_pos_dict['time'])
 		data,dimensions = uv_class.return_parcels_uv(float_pos_dict['time']-datetime.timedelta(hours=1),days_delta=7)
 		prediction = UVPrediction(float_pos_dict,data,dimensions)
-		prediction.create_prediction(ArgoVerticalMovement600,days=6)
+		prediction.create_prediction(ArgoVerticalMovement250,days=6)
 		nc = ParticleDataset('/Users/paulchamberlain/Projects/HyperNav/Pipeline/Compute/RunParcels/tmp/Uniform_out.nc')
 		pl.append(nc)
 	plt.rcParams["figure.figsize"] = (15,15)
 
 	from matplotlib.colors import LinearSegmentedColormap
-	KonaCartopy.llcrnrlon=-156.6
-	KonaCartopy.llcrnrlat=19.2
-	KonaCartopy.urcrnrlon=-156
-	KonaCartopy.urcrnrlat=19.8
+	KonaCartopy.llcrnrlon=-157.8
+	KonaCartopy.llcrnrlat=18.5
+	KonaCartopy.urcrnrlon=-155.8
+	KonaCartopy.urcrnrlat=19.5
 
 	
 	r_start = 0.0
@@ -136,13 +178,13 @@ def future_prediction():
 		lon_list.append(list(lon))
 		DUM,DUM,ax = KonaCartopy().get_map()
 		ax.scatter(lon,lat,marker='X',zorder=15)
-		ax.scatter(lon[16],lat[16],c='r',marker='X',zorder=16)
+		# ax.scatter(lon[34],lat[34],c='r',marker='X',zorder=16)
 
 		lat_holder = np.vstack(lat_list)
 		lon_holder = np.vstack(lon_list)
 		for k in range(lat_holder.shape[1]):
 			ax.plot(lon_holder[:,k],lat_holder[:,k],'b',alpha=0.2)
-		ax.plot(lon_holder[:,16],lat_holder[:,16],'r',zorder=16)
+		# ax.plot(lon_holder[:,34],lat_holder[:,34],'r',zorder=16)
 
 		ax.contourf(XX,YY,plot_data,levels,cmap=bathy,animated=True,vmax=6,vmin=0)
 		plt.title(date_start+timedelta)
