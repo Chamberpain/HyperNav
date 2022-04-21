@@ -5,56 +5,17 @@ import datetime
 from GeneralUtilities.Filepath.instance import FilePathHandler
 from HyperNav.Utilities.FieldDeployments.FieldDeploymentBase import mean_monthly_plot,quiver_movie,shear_movie,eke_plots,pdf_particles_compute
 from HyperNav.Utilities.Compute.RunParcels import UVPrediction,ParticleDataset,ParticleList,ClearSky
+from HyperNav.Utilities.Compute.ArgoBehavior import ArgoVerticalMovement
 import cartopy.crs as ccrs
 import numpy as np
 import os
-from HyperNav.Utilities.Compute.ArgoBehavior import ArgoVerticalMovement700,ArgoVerticalMovement600,ArgoVerticalMovement500,ArgoVerticalMovement400,ArgoVerticalMovement300,ArgoVerticalMovement200,ArgoVerticalMovement100,ArgoVerticalMovement50
+from HyperNav.Utilities.Compute.ArgoBehavior import ArgoVerticalMovement
 from GeneralUtilities.Plot.Cartopy.regional_plot import RegionalBase
 from HyperNav.Utilities.Data.HYCOM import HYCOMHawaii
 from GeneralUtilities.Data.depth.depth_utilities import ETopo1Depth
 
 
 file_handler = FilePathHandler(ROOT_DIR,'HypernavHawaiiFutureDeployment')
-
-def ArgoVerticalMovement250(particle, fieldset, time):
-	driftdepth = 250  # maximum depth in m
-	vertical_speed = 0.10  # sink and rise speed in m/s
-	cycletime = 1 * (14160)#-driftdepth/vertical_speed)  # total time of cycle in seconds
-	surftime = 24000  # time of deep drift in seconds
-	mindepth = 10
-
-	if particle.cycle_phase == 0:
-		# Phase 0: Sinking with vertical_speed until depth is driftdepth
-		particle.depth += vertical_speed * particle.dt
-		particle.cycle_age += particle.dt
-		if particle.depth >= driftdepth:
-			particle.cycle_phase = 1
-
-	elif particle.cycle_phase == 1:
-		# Phase 1: Drifting at depth for drifttime seconds
-		particle.cycle_age += particle.dt
-		if particle.cycle_age >= cycletime:
-			particle.cycle_phase = 3
-
-	elif particle.cycle_phase == 3:
-		# Phase 3: Rising with vertical_speed until at surface
-		particle.depth -= vertical_speed * particle.dt
-		particle.cycle_age += particle.dt
-		#particle.temp = fieldset.temp[time, particle.depth, particle.lat, particle.lon]  # if fieldset has temperature
-		if particle.depth <= mindepth:
-			particle.depth = mindepth
-			#particle.temp = 0./0.  # reset temperature to NaN at end of sampling cycle
-			particle.surf_age = 0
-			particle.cycle_phase = 4
-
-	elif particle.cycle_phase == 4:
-		# Phase 4: Transmitting at surface until cycletime is reached
-		particle.cycle_age += particle.dt
-		particle.surf_age += particle.dt
-		if particle.surf_age > surftime:
-			particle.cycle_phase = 0
-			particle.cycle_age = 0  # reset cycle_age for next cycle
-
 
 
 class FutureHawaiiCartopy(RegionalBase):
@@ -66,19 +27,11 @@ class FutureHawaiiCartopy(RegionalBase):
         print('I am plotting Kona')
         super().__init__(*args,**kwargs)
 
-def add_zero_boundary_conditions(_matrix):
-		_matrix[:,:,:,0] = 0
-		_matrix[:,:,:,-1] = 0
-		_matrix[:,:,0,:] = 0
-		_matrix[:,:,-1,:] = 0
-		return _matrix
-
 class HYCOMFutureHawaii(HYCOMHawaii):
 	PlotClass = FutureHawaiiCartopy
 	def __init__(self,*args,**kwargs):
 		super().__init__(*args,**kwargs)
-		self.u = add_zero_boundary_conditions(self.u)
-		self.v = add_zero_boundary_conditions(self.v)		
+
 
 def hawaii_mean_monthly_plot():
 	uv_class = HYCOMFutureHawaii.load()
@@ -108,26 +61,37 @@ def hawaii_particles_compute():
 	pdf_particles_compute(uv_class,float_list,file_handler)
 
 def future_prediction():
-	date_start = datetime.datetime(2022,4,1)
-	date_end = datetime.datetime(2022,4,8)
+	date_start = datetime.datetime(2021,4,15)
+	date_end = datetime.datetime(2021,5,15)
 	uv_class = HYCOMFutureHawaii.load(date_start-datetime.timedelta(days=1),date_end)
-	# lats = np.arange(19.4,19.75,0.05)
-	# lons = np.arange(-156.7,-156.2,0.05)
-	lats = [19.3321]
-	lons = [-156.1540]	
+	data,dimensions = uv_class.return_parcels_uv(date_start,date_end)
+	lats = np.arange(19.4,19.75,0.1)
+	lons = np.arange(-156.7,-156.2,0.1)
+	pl = ParticleList()
 
 	X,Y = np.meshgrid(lons,lats)
+
 	lons = X.flatten()
 	lats = Y.flatten()
-	dates = [date_start]*len(lons)
-	keys = ['lat','lon','time']
-	float_list = [dict(zip(keys,list(x))) for x in zip(lats,lons,dates)]
-	pl = ParticleList()
-	for float_pos_dict in float_list:
-		uv_class.time.set_ref_date(float_pos_dict['time'])
-		data,dimensions = uv_class.return_parcels_uv(float_pos_dict['time']-datetime.timedelta(hours=1),days_delta=7)
-		prediction = UVPrediction(float_pos_dict,data,dimensions)
-		prediction.create_prediction(ArgoVerticalMovement250,days=6)
+
+	for lat,lon in zip(lats,lons):
+		time = [date_start]
+		start_time = date_start.timestamp()
+		end_time = date_end.timestamp()
+		drift_depth = -700
+		surface_time = 5400
+		vertical_speed = 0.076
+		total_cycle_time = (date_start - date_end).seconds
+		argo_cfg = {'lat': lat, 'lon': lon, 'target_lat': np.nan, 'target_lon': np.nan,
+					'time': start_time, 'end_time': end_time, 'depth': 10, 'min_depth': 10, 'drift_depth': abs(drift_depth),
+					'max_depth': abs(700),
+					'surface_time': surface_time, 'total_cycle_time': total_cycle_time,
+					'vertical_speed': vertical_speed,
+					}
+
+		data,dimensions = uv_class.return_parcels_uv(date_start-datetime.timedelta(hours=1),date_end+datetime.timedelta(days=3))
+		prediction = UVPrediction(argo_cfg,data,dimensions)
+		prediction.create_prediction()
 		nc = ParticleDataset('/Users/paulchamberlain/Projects/HyperNav/Pipeline/Compute/RunParcels/tmp/Uniform_out.nc')
 		pl.append(nc)
 	plt.rcParams["figure.figsize"] = (15,15)
@@ -136,7 +100,7 @@ def future_prediction():
 	KonaCartopy.llcrnrlon=-157.8
 	KonaCartopy.llcrnrlat=18.5
 	KonaCartopy.urcrnrlon=-155.8
-	KonaCartopy.urcrnrlat=19.5
+	KonaCartopy.urcrnrlat=20.5
 
 	
 	r_start = 0.0
@@ -171,7 +135,7 @@ def future_prediction():
 	levels = [0,1,2,3,4,5,6]
 	lat_list = []
 	lon_list = []
-	for r,timedelta in enumerate([datetime.timedelta(hours=x) for x in range(24*6)]):
+	for r,timedelta in enumerate([datetime.timedelta(hours=x) for x in range(24*28)[::12]]):
 		scatter_list = [x.get_cloud_center(timedelta) for x in pl]
 		lat,lon,lat_std,lon_std = zip(*scatter_list)
 		lat_list.append(list(lat))
@@ -192,133 +156,6 @@ def future_prediction():
 		plt.close()
 	os.chdir(file_handler.out_file('deployment_movie'))
 	os.system("ffmpeg -r 5 -i %01d.png -vcodec mpeg4 -y movie.mp4")
-
-
-def status_update():
-	date_start = datetime.datetime(2021,11,16,21)
-	date_end = datetime.datetime(2021,11,25)
-	HYCOMFutureHawaii.load(date_start-datetime.timedelta(days=1),date_end)
-	uv_class = HYCOMFutureHawaii.load(date_start-datetime.timedelta(days=1),date_end)
-	lats = np.arange(19.4,19.65,0.05)
-	lons = np.arange(-156.5,-156.2,0.05)
-	X,Y = np.meshgrid(lons,lats)
-	lons = X.flatten()
-	lats = Y.flatten()
-	dates = [date_start]*len(lons)
-	keys = ['lat','lon','time']
-	float_list = [dict(zip(keys,[19.6,-156.7,date_start]))]
-	pl = ParticleList()
-	for float_pos_dict in float_list:
-		uv_class.time.set_ref_date(float_pos_dict['time'])
-		data,dimensions = uv_class.return_parcels_uv(float_pos_dict['time']-datetime.timedelta(hours=1),days_delta=7)
-		prediction = UVPrediction(float_pos_dict,data,dimensions)
-		prediction.create_prediction(ArgoVerticalMovement700,days=6)
-		nc = ParticleDataset('/Users/paulchamberlain/Projects/HyperNav/Pipeline/Compute/RunParcels/tmp/Uniform_out.nc')
-		pl.append(nc)
-
-
-	float_track = [(geopy.Point(19.5998,-156.6906),datetime.datetime(2021,11,16,21,00,00)),
-	(geopy.Point(19.6091,-156.6516),datetime.datetime(2021,11,17,2,41,0)),
-	(geopy.Point(19.6663,-156.6161),datetime.datetime(2021,11,17,18,13,10)),
-	(geopy.Point(19.7465,-156.5401),datetime.datetime(2021,11,18,11,54,0)),
-	(geopy.Point(19.7959,-156.5244),datetime.datetime(2021,11,19,3,14,00)),
-	(geopy.Point(19.8534,-156.5333),datetime.datetime(2021,11,19,22,37,40))]
-	dist_list = []
-	point_list = []
-	for float_pos,time in float_track:
-		time_diff = time-date_start
-		lat,lon,DUM,DUM = nc.get_cloud_center(time_diff)
-		predict_point = geopy.Point(lat,lon)
-		dist_list.append((time_diff.total_seconds()/86400.,geopy.distance.GreatCircleDistance(float_pos,predict_point).nm))
-		point_list.append((float_pos,predict_point)) 
-	x,y = zip(*dist_list)
-	plt.plot(x,y)
-	plt.xlabel('Time (days)')
-	plt.ylabel('Error (nm)')
-	plt.savefig(file_handler.out_file('53_error '))
-	plt.close()
-
-
-	plt.rcParams["figure.figsize"] = (15,15)
-
-	from matplotlib.colors import LinearSegmentedColormap
-	KonaCartopy.llcrnrlon=-156.8
-	KonaCartopy.llcrnrlat=19.2
-	KonaCartopy.urcrnrlon=-156
-	KonaCartopy.urcrnrlat=20.3
-
-	
-	r_start = 0.0
-	g_start = 0.5
-	b_start = 0.5
-	delta = 0.08
-	cdict = {'red':  ((r_start, g_start, b_start),
-			(r_start+0.2, g_start+delta, b_start+delta),
-			(r_start+0.4, g_start+2*delta, b_start+2*delta),
-			(r_start+0.6, g_start+3*delta, b_start+3*delta),
-			(r_start+0.8, g_start+4*delta, b_start+4*delta),
-			(r_start+1.0, g_start+5*delta, b_start+5*delta)),
-
-	 'green':((r_start, g_start, b_start),
-			(r_start+0.2, g_start+delta, b_start+delta),
-			(r_start+0.4, g_start+2*delta, b_start+2*delta),
-			(r_start+0.6, g_start+3*delta, b_start+3*delta),
-			(r_start+0.8, g_start+4*delta, b_start+4*delta),
-			(r_start+1.0, g_start+5*delta, b_start+5*delta)),
-
-	 'blue': ((r_start, g_start, b_start),
-			(r_start+0.2, g_start+delta, b_start+delta),
-			(r_start+0.4, g_start+2*delta, b_start+2*delta),
-			(r_start+0.6, g_start+3*delta, b_start+3*delta),
-			(r_start+0.8, g_start+4*delta, b_start+4*delta),
-			(r_start+1.0, g_start+5*delta, b_start+5*delta)),
-	}
-	bathy = LinearSegmentedColormap('bathy', cdict)
-	depth = ETopo1Depth.load().regional_subsample(KonaCartopy.urcrnrlon,KonaCartopy.llcrnrlon,KonaCartopy.urcrnrlat,KonaCartopy.llcrnrlat)
-	plot_data = -depth.z/1000.
-	XX,YY = np.meshgrid(depth.lon,depth.lat)
-	levels = [0,1,2,3,4,5,6]
-	predict_lon = [x[1].longitude for x in point_list]
-	predict_lat = [x[1].latitude for x in point_list]
-	actual_lon = [x[0].longitude for x in point_list]
-	actual_lat = [x[0].latitude for x in point_list]
-
-	DUM,DUM,ax = KonaCartopy().get_map()
-	ax.plot(predict_lon,predict_lat,label='Prediction')
-	ax.plot(actual_lon,actual_lat,label='Actual')
-	ax.contourf(XX,YY,plot_data,levels,cmap=bathy,animated=True,vmax=6,vmin=0)
-	plt.legend(loc='lower left')
-	plt.savefig(file_handler.out_file('53_track'))
-	plt.close()
-
-
-	date_start = float_track[-1][1]
-	date_end = datetime.datetime(2021,11,28)
-	HYCOMFutureHawaii.load(date_start-datetime.timedelta(days=1),date_end)
-	uv_class = HYCOMFutureHawaii.load(date_start-datetime.timedelta(days=1),date_end)
-	lats = np.arange(19.4,19.65,0.05)
-	lons = np.arange(-156.5,-156.2,0.05)
-	X,Y = np.meshgrid(lons,lats)
-	argo_behavior_list = [ArgoVerticalMovement700,ArgoVerticalMovement600,ArgoVerticalMovement500,ArgoVerticalMovement400,ArgoVerticalMovement300,
-	ArgoVerticalMovement200,ArgoVerticalMovement100,ArgoVerticalMovement50]
-	keys = ['lat','lon','time']
-	float_pos_dict = dict(zip(keys,[float_track[-1][0].latitude,float_track[-1][0].longitude,date_start]))
-	pl = ParticleList()
-	for argo_behavior in argo_behavior_list:
-		uv_class.time.set_ref_date(float_pos_dict['time'])
-		data,dimensions = uv_class.return_parcels_uv(float_pos_dict['time']-datetime.timedelta(hours=1),days_delta=7)
-		prediction = UVPrediction(float_pos_dict,data,dimensions)
-		prediction.create_prediction(argo_behavior,days=3)
-		nc = ParticleDataset('/Users/paulchamberlain/Projects/HyperNav/Pipeline/Compute/RunParcels/tmp/Uniform_out.nc')
-		pl.append(nc)
-
-	DUM,DUM,ax = KonaCartopy().get_map()
-	for particle,name in zip(pl,['700 m','600 m','500 m','400 m','300 m','200 m','100 m','50 m']):
-		point_list = [particle.get_cloud_center(datetime.timedelta(hours=int(x))) for x in np.arange(0,120,6)]
-		lats,lons, DUM,DUM = zip(*point_list)
-		ax.plot(lons,lats,label=name)
-	plt.legend()
-	plt.savefig(file_handler.out_file('53_prediction'))
 
 
 def clear_days_prediction():
@@ -384,3 +221,151 @@ def clear_days_prediction():
 		plt.savefig('aot')
 		plt.close()
 		plt.close()
+
+
+
+
+def make_forecast():
+	for float_pos_dict in return_float_pos_list():
+		uv = UVPrediction(float_pos_dict)
+		uv.single_depth_prediction(700)
+		uv.multi_depth_prediction()
+
+def historical_prediction():
+	from HyperNav.Utilities.Data.previous_traj_parse import gps_42_file,mission_42_file,NavisParse
+	parser = NavisParse(gps_42_file,mission_42_file,start_idx = 3)
+	diff_list = []
+	while looper:
+		try: 
+			float_pos_dict,dummy = parser.increment_profile()
+			idx = parser.index
+			create_prediction(float_pos_dict,ArgoVerticalMovement700,700,UVClass=ReturnHYCOMUV)
+			nc = ParticleDataset(file_handler.tmp_file('Uniform_out.nc'))
+			for time in [datetime.timedelta(days=x) for x in [1,2,3]]:
+				(ax,fig) = cartopy_setup(nc,float_pos_dict)
+				lats,lons = nc.get_cloud_snapshot(time)
+				lat_center,lon_center,lat_std,lon_std = nc.get_cloud_center(time)
+				plt.scatter(lons.tolist(),lats.tolist(),c='m',s=2,zorder=5,label='Prediction')
+				plt.scatter(float_pos_dict['lon'],float_pos_dict['lat'],marker='x',c='k',linewidth=6,s=250,zorder=6,label='Location')
+				plt.scatter(lon_center,lat_center,marker='x',c='b',linewidth=6,s=250,zorder=6,label='Mean Prediction')
+				plt.show()
+				float_pos_dict_future,dummy = parser.increment_profile()
+				plt.scatter(float_pos_dict_future['lon'],float_pos_dict_future['lat'],marker='o',c='k',linewidth=6,s=250,zorder=6,label=('Actual '+str(time)+' Day Later'))
+				plt.legend()
+				plt.savefig(file_handler.out_file('historical_day_'+str(idx)+'_prediction_'+str(time)))
+				plt.close()
+				lat_center,lon_center,lat_std,lon_std = nc.get_cloud_center(time)
+
+				float_future_pos = (float_pos_dict_future['lat'],float_pos_dict_future['lon'])
+				mean_prediction_pos = (lat_center,lon_center)
+				diff_list.append((GreatCircleDistance(float_future_pos,mean_prediction_pos),time))
+			parser.index = idx
+		except KeyError:
+			looper = False
+		distance_error_list,days = zip(diff_list)
+		mean_list = []
+		std_list = []
+		for day in np.sort(np.unique(days)):
+			tmp_array = np.array(distance_error)[np.array(days)==day]
+			mean_list.append(tmp_array.mean())
+			std_list.append(tmp_array.std())
+		plt.plot(np.sort(np.unique(days)),mean_list)
+		plt.fill_between(days,np.array(mean_list)-np.array(std_list),np.array(mean_list)+np.array(std_list),color='red',alpha=0.2)
+
+
+def plot_total_prediction(depth_level):
+	float_pos_dict = return_float_pos_dict()
+	nc = ParticleDataset(file_handler.tmp_file('Uniform_out.nc'))
+	depth = Depth()
+
+	(ax,fig) = cartopy_setup(nc,float_pos_dict)
+	XX1,YY1 = np.meshgrid(depth.x,depth.y)
+	plt.contour(XX1,YY1,depth.z,[-1*depth_level],colors=('k',),linewidths=(7,),zorder=4,label='Drift Depth Contour')
+	plt.contourf(XX1,YY1,np.ma.masked_greater(depth.z/1000.,0),zorder=3)
+	plt.colorbar(label = 'Depth (km)')
+
+	particle_color = np.zeros(nc['lon'].shape)
+	for k in range(particle_color.shape[1]):
+		particle_color[:,k]=k
+
+	plt.scatter(nc['lon'][:],nc['lat'][:],c=particle_color,cmap='PuRd',s=2,zorder=5)
+	plt.scatter(float_pos_dict['lon'],float_pos_dict['lat'],marker='x',c='k',linewidth=10,s=500,zorder=6,label='Location')
+	plt.legend()
+	plt.savefig(file_handler.out_file('bathy_plot_total_'+str(depth_level)))
+	plt.close()
+
+
+def weather_maps(): 
+
+	float_pos_dict_kona = {'lat':19.556,'lon':-156.538,'datetime':datetime.datetime.now()}
+	konaweatherpacioos = ReturnPACIOOSWeather(float_pos_dict_kona)
+	konawavespacioos = ReturnPACIOOSWaves(float_pos_dict_kona)
+	float_pos_dict_moby = {'lat':20.8,'lon':-157.2,'datetime':datetime.datetime.now()}
+	mobyweatherpacioos = ReturnPACIOOSWeather(float_pos_dict_moby)
+	mobywavespacioos = ReturnPACIOOSWaves(float_pos_dict_moby)
+
+	for k in range(48):
+		XX,YY,ax = HypernavCartopy(konaweatherpacioos,float_pos_dict_kona,konaweatherpacioos.lats,
+			konaweatherpacioos.lons,pad=-0.5).get_map()
+		q = ax.quiver(XX,YY,konaweatherpacioos.U[k,:,:],konaweatherpacioos.V[k,:,:],scale=510)
+		ax.quiverkey(q, X=0.3, Y=1.1, U=5.14444,
+				 label='length = 10 kts', labelpos='E')
+		plt.title((datetime.datetime.now()+datetime.timedelta(hours=k)).isoformat())
+		plt.savefig(file_handler.tmp_file('wind_kona/'+str(k)))
+		plt.close()
+
+		XX,YY,ax = HypernavCartopy(konaweatherpacioos,float_pos_dict_kona,konaweatherpacioos.lats,
+			konaweatherpacioos.lons,pad=-0.5).get_map()
+		plt.pcolormesh(XX,YY,konaweatherpacioos.rain[k,:,:],vmin=0,vmax=0.0005)
+		plt.colorbar(label='kilogram meter-2 second-1')
+		plt.title((datetime.datetime.now()+datetime.timedelta(hours=k)).isoformat())
+		plt.savefig(file_handler.tmp_file('rain_kona/'+str(k)))
+		plt.close()
+
+		XX,YY,ax = HypernavCartopy(konawavespacioos,float_pos_dict_kona,konawavespacioos.lats,
+			konawavespacioos.lons,pad=-0.5).get_map()
+		plt.pcolormesh(XX,YY,konawavespacioos.waves[k,0,:,:],vmin=0,vmax=3)
+		plt.colorbar(label='significant waveheight (m)')
+		plt.title((datetime.datetime.now()+datetime.timedelta(hours=k)).isoformat())
+		plt.savefig(file_handler.tmp_file('waves_kona/'+str(k)))
+		plt.close()
+
+		XX,YY,ax = HypernavCartopy(mobyweatherpacioos,float_pos_dict_moby,mobyweatherpacioos.lats,
+			mobyweatherpacioos.lons,pad=-0.5).get_map()
+		q = ax.quiver(XX,YY,mobyweatherpacioos.U[k,:,:],mobyweatherpacioos.V[k,:,:])
+		ax.quiverkey(q, X=0.3, Y=1.1, U=5.14444,
+				 label='length = 1o kts', labelpos='E')
+		plt.title((datetime.datetime.now()+datetime.timedelta(hours=k)).isoformat())
+		plt.savefig(file_handler.tmp_file('wind_moby/'+str(k)))
+		plt.close()
+
+		XX,YY,ax = HypernavCartopy(mobyweatherpacioos,float_pos_dict_moby,mobyweatherpacioos.lats,
+			mobyweatherpacioos.lons,pad=-0.5).get_map()
+		plt.pcolormesh(XX,YY,mobyweatherpacioos.rain[k,:,:],vmin=0,vmax=0.0005)
+		plt.colorbar(label='kilogram meter-2 second-1')
+		plt.title((datetime.datetime.now()+datetime.timedelta(hours=k)).isoformat())
+		plt.savefig(file_handler.tmp_file('rain_moby/'+str(k)))
+		plt.close()
+
+		XX,YY,ax = HypernavCartopy(mobywavespacioos,float_pos_dict_moby,mobywavespacioos.lats,
+			mobywavespacioos.lons,pad=-0.5).get_map()
+		plt.pcolormesh(XX,YY,mobywavespacioos.waves[k,0,:,:],vmin=0,vmax=3)
+		plt.colorbar(label='significant waveheight (m)')
+		plt.title((datetime.datetime.now()+datetime.timedelta(hours=k)).isoformat())
+		plt.savefig(file_handler.tmp_file('waves_moby/'+str(k)))
+		plt.close()
+
+
+	os.chdir(file_handler.tmp_file('wind_kona'))
+	os.system('ffmpeg -f image2 -r 2 -i %d.png -c:v libx264 -pix_fmt yuv420p ../wind_kona.mp4')	
+	os.chdir(file_handler.tmp_file('rain_kona'))
+	os.system('ffmpeg -f image2 -r 2 -i %d.png -c:v libx264 -pix_fmt yuv420p ../rain_kona.mp4')
+	os.chdir(file_handler.tmp_file('waves_kona'))
+	os.system('ffmpeg -f image2 -r 2 -i %d.png -c:v libx264 -pix_fmt yuv420p ../waves_kona.mp4')
+	os.chdir(file_handler.tmp_file('wind_moby'))
+	os.system('ffmpeg -f image2 -r 2 -i %d.png -c:v libx264 -pix_fmt yuv420p ../wind_moby.mp4')	
+	os.chdir(file_handler.tmp_file('rain_moby'))
+	os.system('ffmpeg -f image2 -r 2 -i %d.png -c:v libx264 -pix_fmt yuv420p ../rain_moby.mp4')
+	os.chdir(file_handler.tmp_file('waves_moby'))
+	os.system('ffmpeg -f image2 -r 2 -i %d.png -c:v libx264 -pix_fmt yuv420p ../waves_moby.mp4')
+	

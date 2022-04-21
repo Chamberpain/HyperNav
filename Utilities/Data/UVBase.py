@@ -5,42 +5,35 @@ from GeneralUtilities.Compute.list import TimeList, LatList, LonList, DepthList,
 from GeneralUtilities.Compute.constants import degree_dist
 import numpy as np 
 import os
+import shapely
+from abc import ABC,abstractmethod
 
 class UVTimeList(TimeList):
+	
 	def return_time_list(self):
 		return list(range(len(self))[::100])+[len(self)-1] #-1 because of pythons crazy list indexing
 
 	def get_file_indexes(self,start_time,end_time):
 		assert start_time<end_time
+		assert start_time>min(self)
+		assert end_time<max(self)
 		key_list = TimeList([self[x] for x in self.return_time_list()])
 		start_idx = key_list.find_nearest(start_time,idx = True)
 		end_idx = key_list.find_nearest(end_time,idx = True)
 		return np.arange(start_idx-1,end_idx+2).tolist() # +2 because we want to have +1 
 
 
-class Base(object):
+class Base(ABC):
 	time_method = UVTimeList.time_list_from_seconds
-	def __init__(self,u=None,v=None,lons=None,lats=None,time=None,depth=None,units=None,*args,**kwargs):
+	
+	def __init__(self,u=None,v=None,time=None,*args,**kwargs):
 		super().__init__(*args,**kwargs)
-		assert (units == 'm/s')|(units=='meters/second')|(units=='m s-1')
+		assert (self.units == 'm/s')|(self.units=='meters/second')|(self.units=='m s-1')
+		self.time = TimeList(time)
 		self.u = u
 		self.v = v
-		self.lons = LonList(lons)
-		self.lats = LatList(lats)
-		self.time = TimeList(time)
-		self.depth = DepthList(depth)
-
 		self.u = np.ma.masked_array(self.u,mask=abs(self.u)>3)
 		self.v = np.ma.masked_array(self.v,mask=abs(self.v)>3)
-
-
-		# time_v,dummy,dummy,dummy = np.where(abs(self.v)>3)
-		# time_u,dummy,dummy,dummy = np.where(abs(self.u)>3)		
-		# remove = np.unique(time_v.tolist()+time_u.tolist()).tolist()
-		# time_mask = [x not in remove for x in range(len(self.time))]
-		# self.u = self.u[time_mask,:,:,:]
-		# self.v = self.v[time_mask,:,:,:]
-		# self.time = TimeList(np.array(self.time)[time_mask].tolist())
 
 #make sure the variable axis are the proper class
 		assert isinstance(self.time,TimeList) 
@@ -56,9 +49,24 @@ class Base(object):
 		assert len(self.lons)==self.u.shape[3]
 
 	@classmethod
+	@abstractmethod
+	def get_dataset(cls):
+		pass
+
+
+	@classmethod
+	@abstractmethod
+	def get_dimensions(cls):
+		pass
+
+	@classmethod
+	@abstractmethod
+	def download_and_save(cls):
+		pass
+
+	@classmethod
 	def calculate_divergence(cls,u,v):
-		time,lats,lons,depth,lower_lon_idx,higher_lon_idx,lower_lat_idx,higher_lat_idx,units = cls.get_dimensions()
-		XX,YY = np.meshgrid(lons,lats)
+		XX,YY = np.meshgrid(cls.lons,cls.lats)
 		dx = np.gradient(XX)[1]*degree_dist*1000
 		dy = np.gradient(YY)[0]*degree_dist*1000
 		du_dx = np.gradient(u,axis=1)/dx
@@ -67,8 +75,7 @@ class Base(object):
 
 	@classmethod
 	def calculate_curl(cls,u,v):
-		time,lats,lons,depth,lower_lon_idx,higher_lon_idx,lower_lat_idx,higher_lat_idx,units = cls.get_dimensions()
-		XX,YY = np.meshgrid(lons,lats)
+		XX,YY = np.meshgrid(cls.lons,cls.lats)
 		dx = np.gradient(XX)[1]*degree_dist*1000
 		dy = np.gradient(YY)[0]*degree_dist*1000
 		du_dy = np.gradient(u,axis=0)/dy
@@ -102,8 +109,6 @@ class Base(object):
 			v = v[:,:depth_idx,:,:]
 			depth = depth[:depth_idx]
 		return self.__class__(u=u,v=v,lons=self.lons,lats=self.lats,time=self.time,depth=depth,units='m/s')
-
-
 
 	def return_u_v(self,time=None,depth=None):
 		u_holder = self.u[self.time.find_nearest(time,idx=True),self.depth.find_nearest(depth,idx=True),:,:]
@@ -140,9 +145,14 @@ class Base(object):
 		return (self.u[date_idx,:,lat_idx,lon_idx],self.v[date_idx,:,lat_idx,lon_idx])
 
 	@classmethod
+	def get_drifter_profs(cls,ReadClass):
+		float_names = ReadClass.get_floats_in_box(cls.ocean_shape)
+		float_list = [ReadClass.all_dict[x] for x in float_names]
+		return float_list
+
+	@classmethod
 	def load(cls,date_start,date_end):
-		time,lats,lons,depth,lower_lon_idx,higher_lon_idx,lower_lat_idx,higher_lat_idx,units = cls.get_dimensions()
-		time_idx_list = time.get_file_indexes(date_start,date_end)
+		time_idx_list = cls.dataset_time.get_file_indexes(date_start,date_end)
 		u_list = []
 		v_list = []
 		time_list = []
@@ -165,10 +175,10 @@ class Base(object):
 		print(len(time))
 		assert u.shape==v.shape
 		assert u.shape[0] == len(time)
-		assert u.shape[1] == len(depth)
-		assert u.shape[2] == len(lats)
-		assert u.shape[3] == len(lons)
-		out = cls(u=u,v=v,lons=lons,lats=lats,time=time,depth=depth,units=units)
+		assert u.shape[1] == len(cls.depth)
+		assert u.shape[2] == len(cls.lats)
+		assert u.shape[3] == len(cls.lons)
+		out = cls(u=u,v=v,time=time)
 		return out
 
 	@classmethod
@@ -178,7 +188,7 @@ class Base(object):
 	def plot(self,ax=False):
 		return self.PlotClass(self.lats,self.lons,ax).get_map()
 
-	def return_parcels_uv(self,start_date,days_delta=5):
+	def return_parcels_uv(self,start_date,end_date):
 		def add_zeros(array):
 			array[:,:,:3,:]=0
 			array[:,:,-3:,:]=0
@@ -186,8 +196,10 @@ class Base(object):
 			array[:,:,:,-3:]=0
 			return array
 
-		end_date = start_date+datetime.timedelta(days=days_delta) 
-		time_mask = [(x>start_date)&(x<end_date) for x in self.time]
+		end_date += self.time_step
+		start_date -= self.time_step
+
+		time_mask = [(x>=start_date)&(x<=end_date) for x in self.time]
 
 		out_time = TimeList(np.array(self.time)[time_mask].tolist())
 		out_u = self.u[time_mask,:,:,:]
@@ -196,7 +208,7 @@ class Base(object):
 		out_v = add_zeros(out_v)
 		out_w = np.zeros(out_u.shape)
 		data = {'U':out_u,'V':out_v,'W':out_w}
-		dimensions = {'time':out_time.seconds_since(),
+		dimensions = {'time':[x.timestamp() for x in out_time],
 		'depth':[-x for x in self.depth],
 		'lat':self.lats,
 		'lon':self.lons,}		

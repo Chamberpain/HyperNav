@@ -8,7 +8,7 @@ from HyperNav.Utilities.Utilities import nc_file
 import cartopy.crs as ccrs
 import numpy as np
 import os
-from HyperNav.Utilities.Compute.ArgoBehavior import ArgoVerticalMovement700,ArgoVerticalMovement600,ArgoVerticalMovement500,ArgoVerticalMovement400,ArgoVerticalMovement300,ArgoVerticalMovement200,ArgoVerticalMovement100,ArgoVerticalMovement50
+from HyperNav.Utilities.Compute.ArgoBehavior import ArgoVerticalMovement
 from GeneralUtilities.Plot.Cartopy.regional_plot import RegionalBase
 from HyperNav.Utilities.FieldDeployments.HypernavHawaiiFutureDeployment import add_zero_boundary_conditions
 from HyperNav.Utilities.Data.HYCOM import HYCOMBase
@@ -17,12 +17,14 @@ file_handler = FilePathHandler(ROOT_DIR,'HypernavGOMDeployment')
 from GeneralUtilities.Compute.list import TimeList, LatList, LonList, DepthList,flat_list
 from HyperNav.Utilities.Data.UVBase import UVTimeList
 from HyperNav.Utilities.Compute.RunParcels import ParticleList,UVPrediction,ParticleDataset
+import shapely.geometry
+
 
 def ArgoVerticalMovement(particle, fieldset, time):
-	driftdepth = 1500  # maximum depth in m
+	driftdepth = 2000  # maximum depth in m
 	maxdepth = 2000  # maximum depth in m
 	vertical_speed = 0.10  # sink and rise speed in m/s
-	surftime = 0.5 * 3600  # time of deep drift in seconds
+	surftime = 1 * 3600  # time of deep drift in seconds
 	cycletime = 10 * 86400-(2000-driftdepth)/vertical_speed-2000/vertical_speed-surftime  # total time of cycle in seconds
 	mindepth = 10
 
@@ -85,6 +87,8 @@ class HYCOMGOM(HYCOMBase):
 	lllat = 20
 	lllon = -86
 	urlon = -82
+	max_depth = -2500
+	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
 	ID = 'HYCOM_reg1_latest3d'
 	PlotClass = GOMCartopy
 	DepthClass = ETopo1Depth
@@ -92,31 +96,6 @@ class HYCOMGOM(HYCOMBase):
 		super().__init__(*args,**kwargs)
 		self.u = add_zero_boundary_conditions(self.u)
 		self.v = add_zero_boundary_conditions(self.v)	
-
-	@classmethod
-	def get_dimensions(cls):
-		from pydap.client import open_url
-		dataset = open_url(cls.base_html+cls.ID)
-		#open dataset using erdap server
-		time_since = datetime.datetime.strptime(dataset['time'].attributes['time_origin'],'%d-%b-%Y %H:%M:%S')
-		UVTimeList.set_ref_date(time_since)
-		time = UVTimeList.time_list_from_seconds(dataset['time'][:])
-		lats = LatList(dataset['latitude'][:])
-		lons = dataset['longitude'][:].data
-		lons[lons>180] = lons[lons>180]-360
-		lons = LonList(lons)
-		depth = -dataset['depth'][:].data
-		depth = DepthList(depth)
-		depth_idx = depth.find_nearest(-2500,idx=True)
-		depth = depth[:(depth_idx+1)]
-		higher_lon_idx = lons.find_nearest(cls.urlon,idx=True)
-		lower_lon_idx = lons.find_nearest(cls.lllon,idx=True)
-		lons = lons[lower_lon_idx:higher_lon_idx]
-		higher_lat_idx = lats.find_nearest(cls.urlat,idx=True)
-		lower_lat_idx = lats.find_nearest(cls.lllat,idx=True)
-		lats = lats[lower_lat_idx:higher_lat_idx]
-		units = dataset['water_u'].attributes['units']
-		return (time,lats,lons,depth,lower_lon_idx,higher_lon_idx,lower_lat_idx,higher_lat_idx,units)
 
 date_start = datetime.datetime(2020,11,1)
 date_end = datetime.datetime(2020,12,1)
@@ -267,11 +246,6 @@ def future_prediction():
 		plt.close()
 	os.chdir(file_handler.out_file('deployment_movie'))
 	os.system("ffmpeg -r 5 -i %01d.png -vcodec mpeg4 -y movie.mp4")
-
-
-
-
-
 
 def GOM_particles_compute():
 	uv_class = HYCOMGOM

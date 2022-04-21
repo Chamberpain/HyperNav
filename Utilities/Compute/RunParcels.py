@@ -1,5 +1,5 @@
 from parcels import DiffusionUniformKh, FieldSet, ParticleSet, Variable, JITParticle, AdvectionRK4,AdvectionDiffusionM1, plotTrajectoriesFile, ErrorCode
-from HyperNav.Utilities.Compute.ArgoBehavior import ArgoVerticalMovement700,ArgoVerticalMovement600,ArgoVerticalMovement500,ArgoVerticalMovement400,ArgoVerticalMovement300,ArgoVerticalMovement200,ArgoVerticalMovement100,ArgoVerticalMovement50
+from HyperNav.Utilities.Compute.ArgoBehavior import ArgoVerticalMovement
 import numpy as np
 from HyperNav.Utilities.Compute.__init__ import ROOT_DIR
 from GeneralUtilities.Filepath.instance import FilePathHandler
@@ -36,7 +36,7 @@ class ClearSky():
 
 	def return_aot_percent(self,lat,lon):
 		return self.return_data(self.percent_aot['percent AOT869<=0.1 (mean)'],self.percent_aot['percent AOT869<=0.1 (std)'],lat,lon)
-		 	
+			
 	def return_aot(self,lat,lon):
 		return self.return_data(self.aot['AOT869 (mean)'],self.aot['AOT869 (std)'],lat,lon)
 
@@ -69,6 +69,8 @@ class ParticleList(list):
 		XX,YY = np.meshgrid(x[:-1],y[:-1],indexing='xy')
 		ax.contourf(XX,YY,np.log(H),vmin=0,vmax=3)
 		return ax
+
+
 
 class ParticleDataset(Dataset):
 
@@ -134,21 +136,7 @@ class ParticleDataset(Dataset):
 		problem_idxs = np.unique(problem_idxs)
 		return (np.unique(problem_idxs).shape[0]/lat.shape[0])*100 #number of problem floats/number of total floats
 
-particle_num = 500
 
-
-def add_list(add_item):
-	holder = [add_item + dummy for dummy in np.random.normal(scale=.05,size=particle_num)]
-	return holder
-
-def get_test_particles(fieldset,float_pos_dict,start_time):
-	return ParticleSet.from_list(fieldset,
-								 pclass=ArgoParticle,
-								 lat=np.array(add_list(float_pos_dict['lat'])),
-								 lon=np.array(add_list(float_pos_dict['lon'])),
-								 time=[start_time]*particle_num,
-								 depth=[10]*particle_num # start particles at 10m depth
-								 )
 def DeleteParticle(particle, fieldset, time):
     particle.delete()
 
@@ -159,26 +147,41 @@ class UVPrediction():
 		self.uv = uv
 		self.dimensions = dimensions
 
-	def create_prediction(self,vert_move,days=2):
+	def create_prediction(self,n_particles=500,filename = 'Uniform_out.nc',output_time_step=datetime.timedelta(minutes=15)):
 		fieldset = FieldSet.from_data(self.uv, self.dimensions,transpose=False)
 		fieldset.mindepth = self.dimensions['depth'][0]
 		K_bar = 0.000000000025
 		fieldset.add_constant('Kh_meridional',K_bar)
 		fieldset.add_constant('Kh_zonal',K_bar)
-		testParticles = get_test_particles(fieldset,self.float_pos_dict,self.dimensions['time'][0])
-		kernels = vert_move + testParticles.Kernel(AdvectionRK4)
-		dt = 10 #10 minute timestep
-		output_file = testParticles.ParticleFile(name=file_handler.tmp_file('Uniform_out.nc'),
-			outputdt=datetime.timedelta(minutes=dt))
-		testParticles.execute(kernels,
-							  runtime=datetime.timedelta(days=days),
-							  dt=datetime.timedelta(minutes=dt),
+		particles = dict(lat=self.float_pos_dict['lat'] + np.random.normal(scale=.05, size=n_particles),
+						 lon=self.float_pos_dict['lon'] + np.random.normal(scale=.05, size=n_particles),
+						 time=np.array([self.float_pos_dict['time']] * n_particles),
+						 depth=np.array([self.float_pos_dict['depth']] * n_particles),
+						 min_depth=np.array([self.float_pos_dict['min_depth'] if 'min_depth' in self.float_pos_dict.keys() else 10] * n_particles, dtype=np.int32),
+						 drift_depth=np.array([self.float_pos_dict['drift_depth'] if 'drift_depth' in self.float_pos_dict.keys() else 500] * n_particles, dtype=np.int32),
+						 vertical_speed=np.array([self.float_pos_dict['vertical_speed'] if 'vertical_speed' in self.float_pos_dict.keys() else 0.076] * n_particles, dtype=np.float32),
+						 surface_time=np.array([self.float_pos_dict['surface_time'] if 'surface_time' in self.float_pos_dict.keys() else 2 * 3600] * n_particles, dtype=np.int32),
+						 cycle_time=np.array([self.float_pos_dict['total_cycle_time'] if 'total_cycle_time' in self.float_pos_dict.keys() else 2 * 86400] * n_particles, dtype=np.float32),
+						 max_depth=np.array([self.float_pos_dict['max_depth'] if 'max_depth' in self.float_pos_dict.keys() else 500] * n_particles, dtype=np.float32),
+						 )
+		particles['cycle_time'] -= \
+		(particles['drift_depth'] / particles['vertical_speed']) + particles['surface_time'] + \
+		abs(particles['max_depth']+particles['drift_depth'])*particles['vertical_speed'] + \
+		abs(particles['max_depth'])*particles['vertical_speed']
+
+		particle_set = ParticleSet.from_list(fieldset, pclass=ArgoParticle, **particles)
+		kernels = ArgoVerticalMovement + particle_set.Kernel(AdvectionRK4)
+		output_file = particle_set.ParticleFile(name=file_handler.tmp_file(filename),
+			outputdt=output_time_step)
+		particle_set.execute(kernels,
+							  runtime=datetime.timedelta(seconds=(self.float_pos_dict['end_time']-self.float_pos_dict['time'])),
+							  dt=datetime.timedelta(minutes=3),
 							  output_file=output_file,
 							  recovery={ErrorCode.ErrorOutOfBounds: DeleteParticle})
 		output_file.export()
 		output_file.close()
 
-	def calculate_prediction(self,depth_level,days=2.):
+	def calculate_prediction(self):
 		predictions = []
 		self.create_prediction(vert_move_dict[depth_level],days=days)
 		nc = ParticleDataset(file_handler.tmp_file('Uniform_out.nc'))
@@ -236,9 +239,15 @@ class ArgoParticle(JITParticle):
 	# Phase of cycle: init_descend=0, drift=1, profile_descend=2, profile_ascend=3, transmit=4
 	cycle_phase = Variable('cycle_phase', dtype=np.int32, initial=0.)
 	cycle_age = Variable('cycle_age', dtype=np.float32, initial=0.)
-	surf_age = Variable('surf_age', dtype=np.float32, initial=0.)
+	surface_age = Variable('surface_age', dtype=np.float32, initial=0.)
 	profile_idx = Variable('profile_idx', dtype=np.float32, initial=0.)
 	#temp = Variable('temp', dtype=np.float32, initial=np.nan)  # if fieldset has temperature
+	drift_depth = Variable('drift_depth', dtype=np.int32,  to_write=False)  # drifting depth in m
+	min_depth = Variable('min_depth', dtype=np.int32, to_write=False)       # shallowest depth in m
+	max_depth = Variable('max_depth', dtype=np.int32, to_write=False)     # profile depth in m
+	vertical_speed = Variable('vertical_speed', dtype=np.float32, to_write=False)  # sink and rise speed in m/s  (average speed of profile 0054.21171)
+	surface_time = Variable('surface_time', dtype=np.int32, to_write=False)        # surface time in seconds
+	cycle_time = Variable('cycle_time', dtype=np.float32, to_write=False)          # total time of cycle in seconds
 
 
 
