@@ -4,13 +4,12 @@ import datetime
 from GeneralUtilities.Filepath.instance import FilePathHandler
 from HyperNav.Utilities.FieldDeployments.FieldDeploymentBase import mean_monthly_plot,quiver_movie,shear_movie,eke_plots,pdf_particles_compute
 from HyperNav.Utilities.Compute.RunParcels import UVPrediction,ParticleDataset
-from HyperNav.Utilities.Utilities import nc_file
+from HyperNav.Utilities.Utilities import HypernavFileHandler
 import cartopy.crs as ccrs
 import numpy as np
 import os
 from HyperNav.Utilities.Compute.ArgoBehavior import ArgoVerticalMovement
 from GeneralUtilities.Plot.Cartopy.regional_plot import RegionalBase
-from HyperNav.Utilities.FieldDeployments.HypernavHawaiiFutureDeployment import add_zero_boundary_conditions
 from HyperNav.Utilities.Data.HYCOM import HYCOMBase
 from GeneralUtilities.Data.depth.depth_utilities import ETopo1Depth
 file_handler = FilePathHandler(ROOT_DIR,'HypernavGOMDeployment')
@@ -18,57 +17,6 @@ from GeneralUtilities.Compute.list import TimeList, LatList, LonList, DepthList,
 from HyperNav.Utilities.Data.UVBase import UVTimeList
 from HyperNav.Utilities.Compute.RunParcels import ParticleList,UVPrediction,ParticleDataset
 import shapely.geometry
-
-
-def ArgoVerticalMovement(particle, fieldset, time):
-	driftdepth = 2000  # maximum depth in m
-	maxdepth = 2000  # maximum depth in m
-	vertical_speed = 0.10  # sink and rise speed in m/s
-	surftime = 1 * 3600  # time of deep drift in seconds
-	cycletime = 10 * 86400-(2000-driftdepth)/vertical_speed-2000/vertical_speed-surftime  # total time of cycle in seconds
-	mindepth = 10
-
-	if particle.cycle_phase == 0:
-		# Phase 0: Sinking with vertical_speed until depth is driftdepth
-		particle.depth += vertical_speed * particle.dt
-		particle.cycle_age += particle.dt
-		if particle.depth >= driftdepth:
-			particle.cycle_phase = 1
-
-	elif particle.cycle_phase == 1:
-		# Phase 1: Drifting at depth for drifttime seconds
-		particle.cycle_age += particle.dt
-		if particle.cycle_age >= cycletime:
-			particle.cycle_phase = 2
-
-	if particle.cycle_phase == 2:
-		# Phase 0: Sinking with vertical_speed until depth is driftdepth
-		particle.depth += vertical_speed * particle.dt
-		particle.cycle_age += particle.dt
-		if particle.depth >= 2000:
-			particle.cycle_phase = 3
-
-
-	elif particle.cycle_phase == 3:
-		# Phase 3: Rising with vertical_speed until at surface
-		particle.depth -= vertical_speed * particle.dt
-		particle.cycle_age += particle.dt
-		if particle.depth <= mindepth:
-			particle.depth = mindepth
-			particle.surf_age = 0
-			particle.cycle_phase = 4
-
-	elif particle.cycle_phase == 4:
-		# Phase 4: Transmitting at surface until cycletime is reached
-		particle.cycle_age += particle.dt
-		particle.surf_age += particle.dt
-		if particle.surf_age > surftime:
-			particle.cycle_phase = 0
-			particle.cycle_age = 0  # reset cycle_age for next cycle
-
-
-
-
 
 
 class GOMCartopy(RegionalBase):
@@ -92,10 +40,9 @@ class HYCOMGOM(HYCOMBase):
 	ID = 'HYCOM_reg1_latest3d'
 	PlotClass = GOMCartopy
 	DepthClass = ETopo1Depth
-	def __init__(self,*args,**kwargs):
-		super().__init__(*args,**kwargs)
-		self.u = add_zero_boundary_conditions(self.u)
-		self.v = add_zero_boundary_conditions(self.v)	
+	dataset = HYCOMBase.get_dataset(ID)
+	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units = HYCOMBase.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
+
 
 date_start = datetime.datetime(2020,11,1)
 date_end = datetime.datetime(2020,12,1)
@@ -209,38 +156,56 @@ def gom_eke():
 	plt.close()
 
 def future_prediction():
-	date_start = datetime.datetime(2022,3,28)
-	date_end = datetime.datetime(2022,4,9)
+	date_start = datetime.datetime(2022,4,27,11,00)
+	date_end = datetime.datetime(2022,5,6,11,00)
 	uv_class = HYCOMGOM.load(date_start-datetime.timedelta(days=1),date_end)
-	lats = [23.761]
-	lons = [-84.814]
-	dates = [datetime.datetime(2022,3,27)]
-	dates = [date_start]*len(lons)
-	keys = ['lat','lon','time']
-	float_list = [dict(zip(keys,list(x))) for x in zip(lats,lons,dates)]
+	lat = 23.351
+	lon = -84.361
+	start_time = date_start.timestamp()
+	end_time = date_end.timestamp()
+	drift_depth = -1500
+	surface_time = 3600
+	vertical_speed = 0.076
 	pl = ParticleList()
-	for float_pos_dict in float_list:
-		uv_class.time.set_ref_date(float_pos_dict['time'])
-		data,dimensions = uv_class.return_parcels_uv(float_pos_dict['time']-datetime.timedelta(hours=1),days_delta=12)
-		prediction = UVPrediction(float_pos_dict,data,dimensions)
-		prediction.create_prediction(ArgoVerticalMovement,days=11)
-		nc = ParticleDataset(nc_file)
-		pl.append(nc)
+
+	total_cycle_time = (date_start - date_end).seconds
+	argo_cfg = {'lat': lat, 'lon': lon, 'target_lat': np.nan, 'target_lon': np.nan,
+				'time': start_time, 'end_time': end_time, 'depth': 10, 'min_depth': 10, 'drift_depth': abs(drift_depth),
+				'max_depth': abs(2000),
+				'surface_time': surface_time, 'total_cycle_time': total_cycle_time,
+				'vertical_speed': vertical_speed,
+				}
+
+
+	data,dimensions = uv_class.return_parcels_uv(date_start-datetime.timedelta(hours=1),date_end+datetime.timedelta(days=3))
+	prediction = UVPrediction(argo_cfg,data,dimensions)
+	prediction.create_prediction()
+	nc = ParticleDataset('/Users/paulchamberlain/Projects/HyperNav/Pipeline/Compute/RunParcels/tmp/Uniform_out.nc')
+	pl.append(nc)
+
 	plt.rcParams["figure.figsize"] = (15,15)
-	lat_list = []
-	lon_list = []
-	for r,timedelta in enumerate([datetime.timedelta(hours=int(x)) for x in range(int(24*10))[::3]]):
+
+	GOMCartopy.llcrnrlon=-86
+	GOMCartopy.llcrnrlat=22
+	GOMCartopy.urcrnrlon=-79
+	GOMCartopy.urcrnrlat=25.5
+
+	TimeList.set_ref_date(date_start-datetime.timedelta(hours=1))
+	for r,timedelta in enumerate([datetime.timedelta(hours=x) for x in range(24*10)[::3]]):
 		scatter_list = [x.get_cloud_center(timedelta) for x in pl]
 		lat,lon,lat_std,lon_std = zip(*scatter_list)
 		lat_list.append(list(lat))
 		lon_list.append(list(lon))
-		XX,YY,ax = uv_class.plot()
-		ax.scatter(lon,lat,s=80,marker='X',zorder=15)
+		DUM,DUM,ax = GOMCartopy().get_map()
+		ax.scatter(lon,lat,marker='X',zorder=15)
+		# ax.scatter(lon[34],lat[34],c='r',marker='X',zorder=16)
 
 		lat_holder = np.vstack(lat_list)
 		lon_holder = np.vstack(lon_list)
 		for k in range(lat_holder.shape[1]):
-			ax.plot(lon_holder[:,k],lat_holder[:,k],'b',alpha=0.8,linewidth=3)
+			ax.plot(lon_holder[:,k],lat_holder[:,k],'b',alpha=0.2)
+		# ax.plot(lon_holder[:,34],lat_holder[:,34],'r',zorder=16)
+
 		plt.title(date_start+timedelta)
 		plt.savefig(file_handler.out_file('deployment_movie/'+str(r)))
 		plt.close()

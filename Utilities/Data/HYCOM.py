@@ -53,7 +53,7 @@ class HYCOMBase(Base):
 
 	@classmethod
 	def download_and_save(cls):
-		idx_list = time.return_time_list()
+		idx_list = cls.dataset_time.return_time_list()
 		k = 0
 		while k < len(idx_list)-1:
 			print(k)
@@ -62,14 +62,14 @@ class HYCOMBase(Base):
 				k +=1
 				continue
 			try:
-				u_holder = dataset['water_u'][idx_list[k]:idx_list[k+1]
-				,:(len(depth))
-				,lower_lat_idx:higher_lat_idx
-				,lower_lon_idx:higher_lon_idx]
-				v_holder = dataset['water_v'][idx_list[k]:idx_list[k+1]
-				,:(len(depth))
-				,lower_lat_idx:higher_lat_idx
-				,lower_lon_idx:higher_lon_idx]
+				u_holder = cls.dataset['water_u'][idx_list[k]:idx_list[k+1]
+				,:(len(cls.depths))
+				,cls.lllat_idx:cls.urlat_idx
+				,cls.lllon_idx:cls.urlon_idx]
+				v_holder = cls.dataset['water_v'][idx_list[k]:idx_list[k+1]
+				,:(len(cls.depths))
+				,cls.lllat_idx:cls.urlat_idx
+				,cls.lllon_idx:cls.urlon_idx]
 				with open(k_filename, 'wb') as f:
 					pickle.dump({'u':u_holder['water_u'].data,'v':v_holder['water_v'].data, 'time':u_holder['time'].data},f)
 				k +=1

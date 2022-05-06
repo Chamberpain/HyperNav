@@ -114,7 +114,7 @@ class Copernicus(Base):
 
 	@classmethod
 	def download_and_save(cls):
-		idx_list = cls.time.return_time_list()
+		idx_list = cls.dataset_time.return_time_list()
 		k = 0
 		while k < len(idx_list)-1:
 			print(k)
@@ -143,10 +143,10 @@ class CreteCopernicus(Copernicus):
 	lllon = 22.5
 	urlat = 38
 	lllat = 33
-	max_depth = -700
+	max_depth = -2000
 	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
 	location = 'Crete'
 	PlotClass = CreteCartopy
 	dataset = Copernicus.get_dataset()
-	time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units = Copernicus.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
+	dataset_time,lats,lons,depth,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units = Copernicus.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
 

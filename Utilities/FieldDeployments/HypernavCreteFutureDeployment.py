@@ -9,11 +9,9 @@ from HyperNav.Utilities.Compute.RunParcels import UVPrediction,ParticleDataset,P
 import cartopy.crs as ccrs
 import numpy as np
 import os
-from HyperNav.Utilities.Compute.ArgoBehavior import ArgoVerticalMovement700,ArgoVerticalMovement600,ArgoVerticalMovement500,ArgoVerticalMovement400,ArgoVerticalMovement300,ArgoVerticalMovement200,ArgoVerticalMovement100,ArgoVerticalMovement50
 from GeneralUtilities.Plot.Cartopy.regional_plot import RegionalBase
-from HyperNav.Utilities.Data.HYCOM import HYCOMCrete
 from GeneralUtilities.Data.depth.depth_utilities import ETopo1Depth
-from HyperNav.Utilities.Data.Copernicus import Copernicus
+from HyperNav.Utilities.Data.Copernicus import Copernicus, CreteCopernicus
 from sympy.physics.vector import ReferenceFrame
 from sympy.physics.vector import curl
 file_handler = FilePathHandler(ROOT_DIR,'HypernavCreteFutureDeployment')
@@ -137,48 +135,59 @@ def crete_shear_movie():
 
 
 def CreteParticlesCompute():
-	time,lats,lons,depth,lower_lon_idx,higher_lon_idx,lower_lat_idx,higher_lat_idx,units = Copernicus.get_dimensions()
-	uv_class = 	copernicus_instance = Copernicus.load(datetime.datetime(2021,4,1),datetime.datetime(2021,5,20))
+	date_start = datetime.datetime(2021,4,27)
+	date_end = datetime.datetime(2021,5,15)
+	uv_class = CreteCopernicus.load(date_start-datetime.timedelta(days=1),date_end+datetime.timedelta(days=1))
+
+	start_time = date_start.timestamp()
+	end_time = date_end.timestamp()
 	uv_class.depth[0]=0
 	uv_class = uv_class.subsample_depth(4,max_depth=-800)
 	uv_class = uv_class.subsample_time_u_v(3)
-	for depth, argobehavior in [(300,ArgoVerticalMovement300),(400,ArgoVerticalMovement400),(500,ArgoVerticalMovement500),(600,ArgoVerticalMovement600)]:
-		for float_pos_dict,sitename in [({'lat':35.8,'lon':24.0,'time':datetime.datetime(2021,4,2)},'site_1_'),
-			({'lat':35.8,'lon':25.0,'time':datetime.datetime(2021,4,1)},'site_2_'),
-			({'lat':35.5,'lon':26.0,'time':datetime.datetime(2021,4,2)},'site_3_')
-			]:
-			dist_loc = []
-			filename = sitename+str(depth)
-			if not os.path.isfile(compute_file_handler.tmp_file(filename+'.nc')):
-				float_pos_dict['time'] = float_pos_dict['time']+datetime.timedelta(days=1)
-				data,dimensions = uv_class.return_parcels_uv(float_pos_dict['time'],days_delta=46)
-				prediction = UVPrediction(float_pos_dict,data,dimensions)
-				prediction.create_prediction(ArgoVerticalMovement600,days=45.)
-				os.rename(compute_file_handler.tmp_file('Uniform_out.nc'),compute_file_handler.tmp_file(filename+'.nc'))
-			nc = ParticleDataset(compute_file_handler.tmp_file(filename+'.nc'))
-			# for delta in [datetime.timedelta(days=x) for x in range(45)]:
-			# 	lat_center,lon_center,lat_std,lon_std = nc.get_cloud_center(delta)
-			# 	dist_loc.append((lat_center,lon_center))
-			fig = plt.figure()
-			ax1 = fig.add_subplot(1,1,1, projection=ccrs.PlateCarree())
-			XX,YY,ax1 = uv_class.plot(ax=ax1)
-			for n in range(nc['lat'].shape[0]):
-				ax1.scatter(nc['lon'][n,:],nc['lat'][n,:],s=0.2)
-				ax1.scatter(nc['lon'][n,-1],nc['lat'][n,-1],s=1,c='k',marker='x',zorder=20)
-			plt.title(filename)
-			plt.savefig(file_handler.out_file(filename))
-			plt.close()		
+	data,dimensions = uv_class.return_parcels_uv(date_start-datetime.timedelta(days=1),date_end+datetime.timedelta(days=1))
+	lat = 35.74
+	lon = 25.07
+	surface_time = 5400
+	vertical_speed = 0.076
 
-			fig = plt.figure()
-			data_list = []
+	for depth in [300,400,500,600]:
+		argo_cfg = {'lat': lat, 'lon': lon, 'target_lat': np.nan, 'target_lon': np.nan,
+					'time': start_time, 'end_time': end_time, 'depth': 10, 'min_depth': 10, 'drift_depth': abs(depth),
+					'max_depth': abs(depth),
+					'surface_time': surface_time, 'total_cycle_time': 24*3600,
+					'vertical_speed': vertical_speed,
+					}
 
-			for n in range(nc['lat'].shape[0]):
-				data_list.append(len(nc['z'][:][n,:][~nc['z'][:][n,:].mask]))
-			plt.hist(data_list,bins=100)
-			plt.xlabel('Time Step')
-			plt.title('Timestep Ran Aground')
-			plt.savefig(file_handler.out_file(filename+'_hist'))
-			plt.close()		
+		dist_loc = []
+		filename = 'site_2_'+str(depth)
+		if not os.path.isfile(compute_file_handler.tmp_file(filename+'.nc')):
+			prediction = UVPrediction(argo_cfg,data,dimensions)
+			prediction.create_prediction()
+			os.rename(compute_file_handler.tmp_file('Uniform_out.nc'),compute_file_handler.tmp_file(filename+'.nc'))
+		nc = ParticleDataset(compute_file_handler.tmp_file(filename+'.nc'))
+		# for delta in [datetime.timedelta(days=x) for x in range(45)]:
+		# 	lat_center,lon_center,lat_std,lon_std = nc.get_cloud_center(delta)
+		# 	dist_loc.append((lat_center,lon_center))
+		fig = plt.figure()
+		ax1 = fig.add_subplot(1,1,1, projection=ccrs.PlateCarree())
+		XX,YY,ax1 = uv_class.plot(ax=ax1)
+		for n in range(nc['lat'].shape[0]):
+			ax1.scatter(nc['lon'][n,:],nc['lat'][n,:],s=0.2)
+			ax1.scatter(nc['lon'][n,-1],nc['lat'][n,-1],s=1,c='k',marker='x',zorder=20)
+		plt.title(filename)
+		plt.savefig(file_handler.out_file(filename))
+		plt.close()		
+
+		fig = plt.figure()
+		data_list = []
+
+		for n in range(nc['lat'].shape[0]):
+			data_list.append(len(nc['z'][:][n,:][~nc['z'][:][n,:].mask]))
+		plt.hist(data_list,bins=100)
+		plt.xlabel('Time Step')
+		plt.title('Timestep Ran Aground')
+		plt.savefig(file_handler.out_file(filename+'_hist'))
+		plt.close()		
 
 
 

@@ -27,7 +27,6 @@ class Base(ABC):
 	time_method = UVTimeList.time_list_from_seconds
 	
 	def __init__(self,u=None,v=None,time=None,*args,**kwargs):
-		super().__init__(*args,**kwargs)
 		assert (self.units == 'm/s')|(self.units=='meters/second')|(self.units=='m s-1')
 		self.time = TimeList(time)
 		self.u = u
@@ -37,14 +36,14 @@ class Base(ABC):
 
 #make sure the variable axis are the proper class
 		assert isinstance(self.time,TimeList) 
-		assert isinstance(self.depth,DepthList) 
+		assert isinstance(self.depths,DepthList) 
 		assert isinstance(self.lats,LatList) 
 		assert isinstance(self.lons,LonList) 
 
 #make sure all the dimensions are consistent
 		assert self.u.shape==self.v.shape
 		assert len(self.time)==self.u.shape[0]
-		assert len(self.depth)==self.u.shape[1]
+		assert len(self.depths)==self.u.shape[1]
 		assert len(self.lats)==self.u.shape[2]
 		assert len(self.lons)==self.u.shape[3]
 
@@ -86,7 +85,7 @@ class Base(ABC):
 		u = self.u[::N,:,:,:]
 		v = self.v[::N,:,:,:]
 		time = self.time[::N]
-		return self.__class__(u=u,v=v,lons=self.lons,lats=self.lats,time=time,depth=self.depth,units='m/s')
+		return self.__class__(u=u,v=v,time=time)
 
 	def subsample_space_u_v(self,lllon,urlon,lllat,urlat):
 		lllon_index = self.lons.find_nearest(lllon,idx=True)
@@ -95,20 +94,21 @@ class Base(ABC):
 		urlat_index = self.lats.find_nearest(urlat,idx=True)
 		u = self.u[:,:,lllat_index:urlat_index,lllon_index:urlon_index]
 		v = self.v[:,:,lllat_index:urlat_index,lllon_index:urlon_index]
-		lons = self.lons[lllon_index:urlon_index]
-		lats = self.lats[lllat_index:urlat_index]
-		return self.__class__(u=u,v=v,lons=lons,lats=lats,time=self.time,depth=self.depth,units='m/s')
+		self.__class__.lons = self.lons[lllon_index:urlon_index]
+		self.__class__.lats = self.lats[lllat_index:urlat_index]
+		return self.__class__(u=u,v=v,time=self.time)
 
 	def subsample_depth(self,N,max_depth=None):
 		u = self.u[:,::N,:,:]
 		v = self.v[:,::N,:,:]
-		depth = self.depth[::N]
+		depth = self.depths[::N]
 		if max_depth:
 			depth_idx = depth.find_nearest(max_depth,idx=True)
 			u = u[:,:depth_idx,:,:]
 			v = v[:,:depth_idx,:,:]
-			depth = depth[:depth_idx]
-		return self.__class__(u=u,v=v,lons=self.lons,lats=self.lats,time=self.time,depth=depth,units='m/s')
+			depths = depths[:depth_idx]
+		self.__class__.depths=depths
+		return self.__class__(u=u,v=v,time=self.time)
 
 	def return_u_v(self,time=None,depth=None):
 		u_holder = self.u[self.time.find_nearest(time,idx=True),self.depth.find_nearest(depth,idx=True),:,:]
@@ -175,7 +175,7 @@ class Base(ABC):
 		print(len(time))
 		assert u.shape==v.shape
 		assert u.shape[0] == len(time)
-		assert u.shape[1] == len(cls.depth)
+		assert u.shape[1] == len(cls.depths)
 		assert u.shape[2] == len(cls.lats)
 		assert u.shape[3] == len(cls.lons)
 		out = cls(u=u,v=v,time=time)
@@ -209,7 +209,7 @@ class Base(ABC):
 		out_w = np.zeros(out_u.shape)
 		data = {'U':out_u,'V':out_v,'W':out_w}
 		dimensions = {'time':[x.timestamp() for x in out_time],
-		'depth':[-x for x in self.depth],
+		'depth':[-x for x in self.depths],
 		'lat':self.lats,
 		'lon':self.lons,}		
 		return (data,dimensions)
