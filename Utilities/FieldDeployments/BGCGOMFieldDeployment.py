@@ -191,9 +191,11 @@ def future_prediction():
 	GOMCartopy.urcrnrlat=25.5
 
 	TimeList.set_ref_date(date_start-datetime.timedelta(hours=1))
+	depth_class = uv_class.DepthClass.load()
 	for r,timedelta in enumerate([datetime.timedelta(hours=x) for x in range(24*10)[::3]]):
 		scatter_list = [x.get_cloud_center(timedelta) for x in pl]
 		lat,lon,lat_std,lon_std = zip(*scatter_list)
+		depth = depth_class.return_z(geopy.Point(lat,lon))
 		lat_list.append(list(lat))
 		lon_list.append(list(lon))
 		DUM,DUM,ax = GOMCartopy().get_map()
@@ -206,7 +208,7 @@ def future_prediction():
 			ax.plot(lon_holder[:,k],lat_holder[:,k],'b',alpha=0.2)
 		# ax.plot(lon_holder[:,34],lat_holder[:,34],'r',zorder=16)
 
-		plt.title(date_start+timedelta)
+		plt.title(str(date_start+timedelta)+' Lat:'+str(lat)+' Lon:'+str(lon)+' Depth:'+str(depth))
 		plt.savefig(file_handler.out_file('deployment_movie/'+str(r)))
 		plt.close()
 	os.chdir(file_handler.out_file('deployment_movie'))

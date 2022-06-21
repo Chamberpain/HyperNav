@@ -3,15 +3,15 @@ from GeneralUtilities.Compute.list import GeoList,VariableList
 from HyperNav.Utilities.Data.__init__ import ROOT_DIR
 import matplotlib.pyplot as plt
 import datetime
-from GeneralUtilities.Filepath.instance import FilePathHandler
+from GeneralUtilities.Data.Filepath.instance import FilePathHandler
 from HyperNav.Utilities.FieldDeployments.FieldDeploymentBase import mean_monthly_plot,quiver_movie,shear_movie,eke_plots,pdf_particles_compute
 from HyperNav.Utilities.Compute.RunParcels import UVPrediction,ParticleDataset,ParticleList,ClearSky
 import cartopy.crs as ccrs
 import numpy as np
 import os
 from GeneralUtilities.Plot.Cartopy.regional_plot import RegionalBase
-from GeneralUtilities.Data.depth.depth_utilities import ETopo1Depth
-from HyperNav.Utilities.Data.Copernicus import Copernicus, CreteCopernicus
+from GeneralUtilities.Compute.Depth.depth_utilities import ETopo1Depth
+from HyperNav.Utilities.Data.CopernicusMed import CopernicusMed, CreteCopernicus
 from sympy.physics.vector import ReferenceFrame
 from sympy.physics.vector import curl
 file_handler = FilePathHandler(ROOT_DIR,'HypernavCreteFutureDeployment')
@@ -119,12 +119,11 @@ def mean_curl_plot():
 def ts_plot():
 	lat = 35.8
 	lon = 25.0
-	start_date = datetime.datetime(2021,4,1)
-	end_date = datetime.datetime(2021,5,1)
-	fig,fig1 = Copernicus.get_sal_temp_profiles(lat,lon,start_date,end_date)
+	start_date = datetime.datetime(2021,5,15)
+	end_date = datetime.datetime(2021,5,31)
+	fig,fig1 = CreteCopernicus.get_sal_temp_profiles(lat,lon,start_date,end_date)
 	fig.savefig(file_handler.out_file('site_2_ts'))
 	fig1.savefig(file_handler.out_file('site_2_density'))
-
 
 def crete_shear_movie():
 	uv_class = 	Copernicus.load(datetime.datetime(2021,4,1),datetime.datetime(2021,5,1))

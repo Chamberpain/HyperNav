@@ -1,5 +1,5 @@
 from HyperNav.Utilities.Data.__init__ import ROOT_DIR
-from GeneralUtilities.Filepath.instance import FilePathHandler
+from GeneralUtilities.Data.Filepath.instance import FilePathHandler
 from HyperNav.Utilities.Data.UVBase import Base,UVTimeList
 from GeneralUtilities.Compute.list import LatList, LonList, DepthList, flat_list
 from urllib.error import HTTPError
@@ -11,7 +11,7 @@ import pickle
 from pydap.client import open_url
 from pydap.cas.get_cookies import setup_session
 from GeneralUtilities.Plot.Cartopy.regional_plot import CreteCartopy
-from GeneralUtilities.Data.depth.depth_utilities import ETopo1Depth
+from GeneralUtilities.Compute.Depth.depth_utilities import ETopo1Depth
 import datetime
 import gsw
 import shapely.geometry
@@ -23,7 +23,7 @@ class CopUVTimeList(UVTimeList):
 
 
 
-class Copernicus(Base):
+class CopernicusMed(Base):
 	facecolor = 'orange'
 	dataset_description = 'Copernicus'
 	base_html = 'https://nrt.cmems-du.eu/thredds/dodsC/'
@@ -53,33 +53,34 @@ class Copernicus(Base):
 		lon_idx = cls.lons.find_nearest(lon,idx=True)
 		lat_idx = cls.lats.find_nearest(lat,idx=True)
 		depth_idx = cls.depth.find_nearest(-700,idx=True)
-		time_start_idx = cls.time.find_nearest(start_date,idx=True)
-		time_end_idx = cls.time.find_nearest(end_date,idx=True)
+		time_start_idx = cls.dataset_time.find_nearest(start_date,idx=True)
+		time_end_idx = cls.dataset_time.find_nearest(end_date,idx=True)
 
 		data_list = []
 		for var,ID in [('so','med-cmcc-sal-an-fc-h'),('thetao','med-cmcc-tem-an-fc-h')]:
-			profile = cls.dataset[var].data[0][time_start_idx:time_end_idx,:depth_idx,lat_idx,lon_idx]
+			dataset = cls.get_dataset(ID=ID)
+			profile = dataset[var].data[0][time_start_idx:time_end_idx,:depth_idx,lat_idx,lon_idx]
 			data_list.append(profile.mean(axis=0).flatten())
 
 		fig, ax1 = plt.subplots()
 		color = 'tab:red'
 		ax1.set_xlabel('Salinity (psu)', color=color)
 		ax1.set_ylabel('Depth (m)')
-		ax1.plot(data_list[0], depth[:depth_idx], color=color)
+		ax1.plot(data_list[0], cls.depth[:depth_idx], color=color)
 		ax1.tick_params(axis='x', labelcolor=color)
 
 		ax2 = ax1.twiny()  # instantiate a second axes that shares the same x-axis
 
 		color = 'tab:blue'
 		ax2.set_xlabel(r'$\theta_0\ (c)$', color=color)  # we already handled the x-label with ax1
-		ax2.plot(data_list[1], depth[:depth_idx], color=color)
+		ax2.plot(data_list[1], cls.depth[:depth_idx], color=color)
 		ax2.tick_params(axis='x', labelcolor=color)
 
 		fig.tight_layout()  # otherwise the right y-label is slightly clipped
-		gsw.p_from_z(depth,lat)
+		gsw.p_from_z(cls.depth,lat)
 		density = gsw.density.sigma0(data_list[0],data_list[1])
 		fig1, ax1 = plt.subplots()
-		ax1.plot(density,depth[:depth_idx])
+		ax1.plot(density,cls.depth[:depth_idx])
 		plt.xlabel(r'$\sigma_0\ (kg\ m^{-3})$')
 		plt.ylabel('depth (m)')
 		return (fig,fig1)
@@ -138,15 +139,15 @@ class Copernicus(Base):
 				print('Index ',k,' encountered an error and did not save. Trying again')
 				continue
 
-class CreteCopernicus(Copernicus):
-	urlon = 28.5
-	lllon = 22.5
+class CreteCopernicus(CopernicusMed):
 	urlat = 38
 	lllat = 33
-	max_depth = -2000
+	lllon = 22.5
+	urlon = 28.5
+	max_depth = -700
 	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
 	location = 'Crete'
 	PlotClass = CreteCartopy
-	dataset = Copernicus.get_dataset()
-	dataset_time,lats,lons,depth,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units = Copernicus.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
+	dataset = CopernicusMed.get_dataset()
+	dataset_time,lats,lons,depth,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units = CopernicusMed.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
 

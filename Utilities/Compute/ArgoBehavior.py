@@ -18,7 +18,7 @@ def ArgoVerticalMovement(particle, fieldset, time):
         particle.depth += particle.vertical_speed * particle.dt
         if particle.depth >= particle.max_depth:
             particle.depth = particle.max_depth
-    #         particle.cycle_phase = 3
+            particle.cycle_phase = 3
     elif particle.cycle_phase == 3:
         # Phase 3: Rising with vertical_speed until at surface
         particle.depth -= particle.vertical_speed * particle.dt

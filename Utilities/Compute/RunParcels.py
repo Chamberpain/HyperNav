@@ -2,13 +2,13 @@ from parcels import DiffusionUniformKh, FieldSet, ParticleSet, Variable, JITPart
 from HyperNav.Utilities.Compute.ArgoBehavior import ArgoVerticalMovement
 import numpy as np
 from HyperNav.Utilities.Compute.__init__ import ROOT_DIR
-from GeneralUtilities.Filepath.instance import FilePathHandler
+from GeneralUtilities.Data.Filepath.instance import FilePathHandler
 from datetime import timedelta
 import datetime
 from netCDF4 import Dataset
 import matplotlib.pyplot as plt
 from geopy import distance
-from GeneralUtilities.Data.depth.depth_utilities import PACIOOS as Depth
+from GeneralUtilities.Compute.Depth.depth_utilities import PACIOOS as Depth
 from parcels import ParcelsRandom as random
 from GeneralUtilities.Compute.list import TimeList
 import os

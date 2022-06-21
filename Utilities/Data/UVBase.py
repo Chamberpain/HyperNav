@@ -178,7 +178,7 @@ class Base(ABC):
 		assert u.shape[1] == len(cls.depths)
 		assert u.shape[2] == len(cls.lats)
 		assert u.shape[3] == len(cls.lons)
-		out = cls(u=u,v=v,time=time)
+		out = cls(u=u*cls.scale_factor,v=v*cls.scale_factor,time=time)
 		return out
 
 	@classmethod
