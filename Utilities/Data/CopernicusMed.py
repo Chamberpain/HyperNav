@@ -124,14 +124,14 @@ class CopernicusMed(Base):
 				k +=1
 				continue
 			try:
-				u_holder = cls.dataset['uo'].data[0][cls.idx_list[k]:cls.idx_list[k+1]
+				u_holder = cls.dataset['uo'].data[0][idx_list[k]:idx_list[k+1]
 				,:(len(cls.depth))
-				,cls.lower_lat_idx:cls.higher_lat_idx
-				,cls.lower_lon_idx:cls.higher_lon_idx]
-				v_holder = cls.dataset['vo'].data[0][cls.idx_list[k]:cls.idx_list[k+1]
-				,:(len(depth))
-				,cls.lower_lat_idx:cls.higher_lat_idx
-				,cls.lower_lon_idx:cls.higher_lon_idx]
+				,cls.lllat_idx:cls.urlat_idx
+				,cls.lllon_idx:cls.urlon_idx]
+				v_holder = cls.dataset['vo'].data[0][idx_list[k]:idx_list[k+1]
+				,:(len(cls.depth))
+				,cls.lllat_idx:cls.urlat_idx
+				,cls.lllon_idx:cls.urlon_idx]
 				with open(k_filename, 'wb') as f:
 					pickle.dump({'u':u_holder,'v':v_holder, 'time':cls.dataset['time'].data[idx_list[k]:idx_list[k+1]].tolist()},f)
 				k +=1

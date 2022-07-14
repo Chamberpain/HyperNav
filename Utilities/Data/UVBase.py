@@ -25,7 +25,8 @@ class UVTimeList(TimeList):
 
 class Base(ABC):
 	time_method = UVTimeList.time_list_from_seconds
-	
+	scale_factor = 1
+
 	def __init__(self,u=None,v=None,time=None,*args,**kwargs):
 		assert (self.units == 'm/s')|(self.units=='meters/second')|(self.units=='m s-1')
 		self.time = TimeList(time)
@@ -36,14 +37,14 @@ class Base(ABC):
 
 #make sure the variable axis are the proper class
 		assert isinstance(self.time,TimeList) 
-		assert isinstance(self.depths,DepthList) 
+		assert isinstance(self.depth,DepthList) 
 		assert isinstance(self.lats,LatList) 
 		assert isinstance(self.lons,LonList) 
 
 #make sure all the dimensions are consistent
 		assert self.u.shape==self.v.shape
 		assert len(self.time)==self.u.shape[0]
-		assert len(self.depths)==self.u.shape[1]
+		assert len(self.depth)==self.u.shape[1]
 		assert len(self.lats)==self.u.shape[2]
 		assert len(self.lons)==self.u.shape[3]
 
@@ -101,13 +102,13 @@ class Base(ABC):
 	def subsample_depth(self,N,max_depth=None):
 		u = self.u[:,::N,:,:]
 		v = self.v[:,::N,:,:]
-		depth = self.depths[::N]
+		depth = self.depth[::N]
 		if max_depth:
 			depth_idx = depth.find_nearest(max_depth,idx=True)
 			u = u[:,:depth_idx,:,:]
 			v = v[:,:depth_idx,:,:]
-			depths = depths[:depth_idx]
-		self.__class__.depths=depths
+			depth = depth[:depth_idx]
+		self.__class__.depth=depth
 		return self.__class__(u=u,v=v,time=self.time)
 
 	def return_u_v(self,time=None,depth=None):
@@ -175,7 +176,7 @@ class Base(ABC):
 		print(len(time))
 		assert u.shape==v.shape
 		assert u.shape[0] == len(time)
-		assert u.shape[1] == len(cls.depths)
+		assert u.shape[1] == len(cls.depth)
 		assert u.shape[2] == len(cls.lats)
 		assert u.shape[3] == len(cls.lons)
 		out = cls(u=u*cls.scale_factor,v=v*cls.scale_factor,time=time)
@@ -209,7 +210,7 @@ class Base(ABC):
 		out_w = np.zeros(out_u.shape)
 		data = {'U':out_u,'V':out_v,'W':out_w}
 		dimensions = {'time':[x.timestamp() for x in out_time],
-		'depth':[-x for x in self.depths],
+		'depth':[-x for x in self.depth],
 		'lat':self.lats,
 		'lon':self.lons,}		
 		return (data,dimensions)

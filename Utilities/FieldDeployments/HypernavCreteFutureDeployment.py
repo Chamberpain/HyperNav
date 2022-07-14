@@ -31,8 +31,8 @@ cartopy.mpl.geoaxes.GeoAxesSubplot.site_plots = site_plots
 def bathy_plot():
 	fig = plt.figure(figsize=(12,12))
 	ax1 = fig.add_subplot(1,1,1, projection=ccrs.PlateCarree())
-	time,lats,lons,depth,lower_lon_idx,higher_lon_idx,lower_lat_idx,higher_lat_idx,units = Copernicus.get_dimensions()
-	copernicus_instance = Copernicus.load(time[0],time[1])
+	time,lats,lons,depth,lower_lon_idx,higher_lon_idx,lower_lat_idx,higher_lat_idx,units = CreteCopernicus.get_dimensions()
+	copernicus_instance = CreteCopernicus.load(time[0],time[1])
 	XX,YY,ax1 = copernicus_instance.plot(ax=ax1)
 	cf = ax1.bathy()
 	ax1.site_plots()
@@ -47,8 +47,8 @@ def mean_curl_plot():
 		fig = plt.figure(figsize=(12,12))
 		ax1 = fig.add_subplot(1,2,1, projection=ccrs.PlateCarree())
 		ax2 = fig.add_subplot(1,2,2, projection=ccrs.PlateCarree())
-		cu,cv = copernicus_instance.return_monthly_mean(4,-0)
-		cop_curl = Copernicus.calculate_curl(cu,cv)
+		cu,cv = copernicus_instance.return_monthly_mean(7,-0)
+		cop_curl = CreteCopernicus.calculate_curl(cu,cv)
 
 
 		plot_max = np.nanmax(cop_curl)
@@ -60,8 +60,8 @@ def mean_curl_plot():
 		ax1.site_plots()
 		ax1.title.set_text('Surface')
 
-		cu,cv = copernicus_instance.return_monthly_mean(4,-700)
-		cop_curl = Copernicus.calculate_curl(cu,cv)
+		cu,cv = copernicus_instance.return_monthly_mean(7,-700)
+		cop_curl = CreteCopernicus.calculate_curl(cu,cv)
 		plot_max = np.nanmax(cop_curl)
 		plot_min = np.nanmin(cop_curl)
 		XX,YY,ax2 = copernicus_instance.plot(ax=ax2)
@@ -78,15 +78,14 @@ def mean_curl_plot():
 
 
 
-	time,lats,lons,depth,lower_lon_idx,higher_lon_idx,lower_lat_idx,higher_lat_idx,units = Copernicus.get_dimensions()
-	copernicus_instance = Copernicus.load(datetime.datetime(2021,4,1),datetime.datetime(2021,4,28))
+	copernicus_instance = CreteCopernicus.load(datetime.datetime(2021,7,1),datetime.datetime(2021,7,28))
 	plot_depth_curl(copernicus_instance)
 
 	def plot_depth_quiver(copernicus_instance,depth,level):
 		fig = plt.figure(figsize=(12,12))
 		ax1 = fig.add_subplot(1,1,1, projection=ccrs.PlateCarree())
-		cu,cv = copernicus_instance.return_monthly_mean(4,-depth)
-		u_std,v_std = copernicus_instance.return_monthly_std(4,-depth)
+		cu,cv = copernicus_instance.return_monthly_mean(7,CreteCopernicus.max_depth)
+		u_std,v_std = copernicus_instance.return_monthly_std(7,CreteCopernicus.max_depth)
 
 		XX,YY,ax1 = copernicus_instance.plot(ax=ax1)
 		q = ax1.quiver(XX[::2],YY[::2],cu[::2],cv[::2],scale=level,zorder=10)
@@ -96,7 +95,7 @@ def mean_curl_plot():
 		PCM = ax1.get_children()[1]
 		fig.colorbar(PCM,ax=[ax1],label='Velocity Std ($m^2s^{-2}$)',location='bottom')
 		ax1.title.set_text('Copernicus')
-		plt.savefig(file_handler.out_file('mean'+str(depth)))
+		plt.savefig(file_handler.out_file('mean'+str(CreteCopernicus.max_depth)))
 		plt.close()
 
 	plot_depth_quiver(copernicus_instance,0,10) 	
@@ -105,13 +104,13 @@ def mean_curl_plot():
 	def curl(copernicus_instance,depth):
 		fig = plt.figure(figsize=(12,12))
 		ax1 = fig.add_subplot(1,1,1, projection=ccrs.PlateCarree())
-		cu,cv = copernicus_instance.return_monthly_mean(4,-depth)
-		cop_curl = Copernicus.calculate_curl(cu,cv)
+		cu,cv = copernicus_instance.return_monthly_mean(7,CreteCopernicus.max_depth)
+		cop_curl = CreteCopernicus.calculate_curl(cu,cv)
 		XX,YY,ax1 = copernicus_instance.plot(ax=ax1)
 		pc = ax1.pcolor(XX,YY,cop_curl,cmap='PiYG')
 		ax1.site_plots()
 		fig.colorbar(pc,ax=[ax1],label='Curl ($s^{-1}$)',location='bottom')
-		plt.savefig(file_handler.out_file('curl_'+str(depth)))
+		plt.savefig(file_handler.out_file('curl_'+str(CreteCopernicus.max_depth)))
 		plt.close()
 	curl(copernicus_instance,0)
 	curl(copernicus_instance,700)
@@ -119,36 +118,36 @@ def mean_curl_plot():
 def ts_plot():
 	lat = 35.8
 	lon = 25.0
-	start_date = datetime.datetime(2021,5,15)
-	end_date = datetime.datetime(2021,5,31)
+	start_date = datetime.datetime(2021,7,1)
+	end_date = datetime.datetime(2021,7,31)
 	fig,fig1 = CreteCopernicus.get_sal_temp_profiles(lat,lon,start_date,end_date)
 	fig.savefig(file_handler.out_file('site_2_ts'))
 	fig1.savefig(file_handler.out_file('site_2_density'))
 
 def crete_shear_movie():
-	uv_class = 	Copernicus.load(datetime.datetime(2021,4,1),datetime.datetime(2021,5,1))
+	uv_class = 	CreteCopernicus.load(datetime.datetime(2021,7,1),datetime.datetime(2021,8,1))
 	lat = 35.8
 	lon = 25.0
-	mask = [(x>datetime.datetime(2021,4,1))&(x<datetime.datetime(2021,5,1)) for x in uv_class.time]
+	mask = [(x>datetime.datetime(2021,7,1))&(x<datetime.datetime(2021,8,1)) for x in uv_class.time]
 	shear_movie(uv_class,mask,file_handler,lat,lon)
 
 
 def CreteParticlesCompute():
-	date_start = datetime.datetime(2021,4,27)
-	date_end = datetime.datetime(2021,5,15)
-	uv_class = CreteCopernicus.load(date_start-datetime.timedelta(days=1),date_end+datetime.timedelta(days=1))
+	date_start = datetime.datetime(2021,7,11)
+	date_end = datetime.datetime(2021,7,25)
+	uv_class = CreteCopernicus.load(date_start-datetime.timedelta(days=3),date_end+datetime.timedelta(days=3))
 
 	start_time = date_start.timestamp()
 	end_time = date_end.timestamp()
 	uv_class.depth[0]=0
-	uv_class = uv_class.subsample_depth(4,max_depth=-800)
+	uv_class = uv_class.subsample_depth(4,max_depth=-650)
 	uv_class = uv_class.subsample_time_u_v(3)
-	data,dimensions = uv_class.return_parcels_uv(date_start-datetime.timedelta(days=1),date_end+datetime.timedelta(days=1))
+	data,dimensions = uv_class.return_parcels_uv(date_start-datetime.timedelta(days=2),date_end+datetime.timedelta(days=2))
 	lat = 35.74
 	lon = 25.07
 	surface_time = 5400
 	vertical_speed = 0.076
-
+	from GeneralUtilities.Compute.list import TimeList
 	for depth in [300,400,500,600]:
 		argo_cfg = {'lat': lat, 'lon': lon, 'target_lat': np.nan, 'target_lon': np.nan,
 					'time': start_time, 'end_time': end_time, 'depth': 10, 'min_depth': 10, 'drift_depth': abs(depth),
@@ -163,10 +162,11 @@ def CreteParticlesCompute():
 			prediction = UVPrediction(argo_cfg,data,dimensions)
 			prediction.create_prediction()
 			os.rename(compute_file_handler.tmp_file('Uniform_out.nc'),compute_file_handler.tmp_file(filename+'.nc'))
+		TimeList.set_ref_date(date_start)
 		nc = ParticleDataset(compute_file_handler.tmp_file(filename+'.nc'))
-		# for delta in [datetime.timedelta(days=x) for x in range(45)]:
-		# 	lat_center,lon_center,lat_std,lon_std = nc.get_cloud_center(delta)
-		# 	dist_loc.append((lat_center,lon_center))
+		for delta in [datetime.timedelta(days=x,seconds=0) for x in range(14)]:
+			lat_center,lon_center,lat_std,lon_std = nc.get_cloud_center(delta)
+			dist_loc.append((lat_center,lon_center))
 		fig = plt.figure()
 		ax1 = fig.add_subplot(1,1,1, projection=ccrs.PlateCarree())
 		XX,YY,ax1 = uv_class.plot(ax=ax1)
@@ -187,11 +187,6 @@ def CreteParticlesCompute():
 		plt.title('Timestep Ran Aground')
 		plt.savefig(file_handler.out_file(filename+'_hist'))
 		plt.close()		
-
-
-
-
-
 		dist_lat,dist_lon = zip(*dist_loc)
 		geolist = GeoList([geopy.Point(x) for x in dist_loc])
 		EEZ_list = []
