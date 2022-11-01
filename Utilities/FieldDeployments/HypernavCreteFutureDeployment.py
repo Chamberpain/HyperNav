@@ -204,3 +204,87 @@ def CreteParticlesCompute():
 		ax1.scatter(float_pos_dict['lon'],float_pos_dict['lat'],marker='x',c='k',linewidth=6,s=250,)
 		plt.savefig(file_handler.out_file(filename))
 		plt.close()
+
+
+
+
+def CreteParticlesCompute():
+	date_start = datetime.datetime(2021,7,15)
+	date_end = datetime.datetime(2021,7,19)
+	uv_class = CreteCopernicus.load(date_start-datetime.timedelta(days=3),date_end+datetime.timedelta(days=3))
+
+	start_time = date_start.timestamp()
+	end_time = date_end.timestamp()
+	uv_class.depth[0]=0
+	uv_class = uv_class.subsample_depth(4,max_depth=-650)
+	uv_class = uv_class.subsample_time_u_v(3)
+	data,dimensions = uv_class.return_parcels_uv(date_start,date_end)
+	lat = 35.88
+	lon = 24.75
+	surface_time = 15*60
+	vertical_speed = 0.076
+	depth = 500
+	from GeneralUtilities.Compute.list import TimeList
+	mission_cfg_1 = {'lat': lat, 'lon': lon, 'target_lat': np.nan, 'target_lon': np.nan,
+					'time': start_time, 'end_time': end_time, 'depth': 10, 'min_depth': 10, 'drift_depth': abs(depth),
+					'max_depth': abs(depth),'surface_time': surface_time, 'total_cycle_time': 24*3600,
+					'vertical_speed': vertical_speed,
+					}
+	mission_cfg_2 = {'lat': lat, 'lon': lon, 'target_lat': np.nan, 'target_lon': np.nan,
+					'time': start_time+datetime.timedelta(hours=1), 'end_time': end_time-datetime.timedelta(hours=1), 
+					'depth': 10, 'min_depth': 10, 'drift_depth': abs(depth),
+					'max_depth': abs(depth),'surface_time': surface_time, 'total_cycle_time': 4*24*3600,
+					'vertical_speed': vertical_speed,
+					}	
+
+
+	for k,argo_cfg in enumerate([mission_cfg_1,mission_cfg_2]):
+
+		dist_loc = []
+		filename = 'site_2_'+str(k)
+		if not os.path.isfile(compute_file_handler.tmp_file(filename+'.nc')):
+			prediction = UVPrediction(argo_cfg,data,dimensions)
+			prediction.create_prediction()
+			os.rename(compute_file_handler.tmp_file('Uniform_out.nc'),compute_file_handler.tmp_file(filename+'.nc'))
+		TimeList.set_ref_date(date_start)
+		nc = ParticleDataset(compute_file_handler.tmp_file(filename+'.nc'))
+		for delta in [datetime.timedelta(days=x,seconds=0) for x in range(14)]:
+			lat_center,lon_center,lat_std,lon_std = nc.get_cloud_center(delta)
+			dist_loc.append((lat_center,lon_center))
+		fig = plt.figure()
+		ax1 = fig.add_subplot(1,1,1, projection=ccrs.PlateCarree())
+		XX,YY,ax1 = uv_class.plot(ax=ax1)
+		for n in range(nc['lat'].shape[0]):
+			ax1.scatter(nc['lon'][n,:],nc['lat'][n,:],s=0.2)
+			ax1.scatter(nc['lon'][n,-1],nc['lat'][n,-1],s=1,c='k',marker='x',zorder=20)
+		plt.title(filename)
+		plt.savefig(file_handler.out_file(filename))
+		plt.close()		
+
+		fig = plt.figure()
+		data_list = []
+
+		for n in range(nc['lat'].shape[0]):
+			data_list.append(len(nc['z'][:][n,:][~nc['z'][:][n,:].mask]))
+		plt.hist(data_list,bins=100)
+		plt.xlabel('Time Step')
+		plt.title('Timestep Ran Aground')
+		plt.savefig(file_handler.out_file(filename+'_hist'))
+		plt.close()		
+		dist_lat,dist_lon = zip(*dist_loc)
+		geolist = GeoList([geopy.Point(x) for x in dist_loc])
+		EEZ_list = []
+		for k,dummy in enumerate(geolist.to_shapely()):
+			print(k)
+			EEZ_list += self.df[self.df.contains(dummy)].TERRITORY1.tolist()	# only choose coordinates within the ocean basin of interest
+
+
+		fig = plt.figure()
+		ax1 = fig.add_subplot(1,1,1, projection=ccrs.PlateCarree())
+		XX,YY,ax1 = uv_class.plot(ax=ax1)
+		ax1.scatter(dist_lon,dist_lat)
+		# lat_center,lon_center,lat_std,lon_std = nc.get_cloud_center(delta)
+		# ax1.scatter(lon_center,lat_center)
+		ax1.scatter(float_pos_dict['lon'],float_pos_dict['lat'],marker='x',c='k',linewidth=6,s=250,)
+		plt.savefig(file_handler.out_file(filename))
+		plt.close()

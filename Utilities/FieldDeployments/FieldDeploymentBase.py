@@ -3,7 +3,7 @@ import cartopy.crs as ccrs
 import numpy as np
 import os
 import math
-from HyperNav.Utilities.Compute.RunParcels import ParticleList,UVPrediction,ParticleDataset
+from HyperNav.Utilities.Compute.RunParcels import ParticleList,create_prediction,ParticleDataset
 import datetime
 
 def bathy_plot(uv_class,file_handler):
@@ -45,8 +45,8 @@ def quiver_movie(uv_class,mask,file_handler):
 	u = uv_class.u[mask,:,:,:]
 	v = uv_class.v[mask,:,:,:]
 	time = np.array(uv_class.time)[mask]
-	deep_idx = uv_class.depth.find_nearest(deep,idx=True)
-	shallow_idx = uv_class.depth.find_nearest(shallow,idx=True)
+	deep_idx = uv_class.depths.find_nearest(deep,idx=True)
+	shallow_idx = uv_class.depths.find_nearest(shallow,idx=True)
 	for k in range(u.shape[0]):
 		u_uv_class = u[k,:,:,:]
 		v_uv_class = v[k,:,:,:]
@@ -69,7 +69,7 @@ def quiver_movie(uv_class,mask,file_handler):
 
 def shear_movie(uv_class,mask,file_handler,lat,lon):
 	time = np.array(uv_class.time)[mask]
-	depths = uv_class.depth[:(uv_class.u.shape[1])]
+	depths = uv_class.depths[:(uv_class.u.shape[1])]
 	for k,t in enumerate(time):
 		fig = plt.figure(figsize=(12,12))
 		u,v = uv_class.vertical_shear(t,lat,lon)
@@ -124,8 +124,8 @@ def pdf_particles_compute(uv_class,float_list,file_handler):
 def eke_plots(uv_class,file_handler):
 	shallow = 0
 	deep = -600
-	shallow_idx = uv_class.depth.find_nearest(shallow,idx=True)
-	deep_idx = uv_class.depth.find_nearest(deep,idx=True)
+	shallow_idx = uv_class.depths.find_nearest(shallow,idx=True)
+	deep_idx = uv_class.depths.find_nearest(deep,idx=True)
 
 	u_mean = np.nanmean(uv_class.u[:,:,:,:],axis=0)
 	u_mean = np.stack([u_mean]*uv_class.u.shape[0])

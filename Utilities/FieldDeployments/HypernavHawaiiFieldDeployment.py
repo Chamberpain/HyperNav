@@ -2,7 +2,7 @@ from HyperNav.Utilities.Data.HYCOM import HYCOMHawaii
 from HyperNav.Utilities.Data.__init__ import ROOT_DIR
 import matplotlib.pyplot as plt
 import datetime
-from GeneralUtilities.Filepath.instance import FilePathHandler
+from GeneralUtilities.Data.Filepath.instance import FilePathHandler
 from HyperNav.Utilities.FieldDeployments.FieldDeploymentBase import mean_monthly_plot,quiver_movie,shear_movie,eke_plots
 import cartopy.crs as ccrs
 import numpy as np

@@ -1,11 +1,10 @@
 from HyperNav.Utilities.Data.UVBase import Base, UVTimeList
 from GeneralUtilities.Plot.Cartopy.regional_plot import CreteCartopy,KonaCartopy,PuertoRicoCartopy, TahitiCartopy
-from GeneralUtilities.Data.depth.depth_utilities import PACIOOS,ETopo1Depth
-from HyperNav.Utilities.Compute.RunParcels import UVPrediction,ParticleDataset,ParticleList,ClearSky
+from GeneralUtilities.Compute.Depth.depth_utilities import PACIOOS,ETopo1Depth
 import numpy as np 
 import datetime
 from HyperNav.Utilities.Data.__init__ import ROOT_DIR
-from GeneralUtilities.Filepath.instance import FilePathHandler
+from GeneralUtilities.Data.Filepath.instance import FilePathHandler
 file_handler = FilePathHandler(ROOT_DIR,'HYCOMBase')
 from pydap.client import open_url
 from GeneralUtilities.Compute.list import TimeList, LatList, LonList, DepthList, flat_list
@@ -14,6 +13,8 @@ from socket import timeout
 import os
 import pickle
 import shapely.geometry
+
+
 
 class HYCOMBase(Base):
 	dataset_description = 'HYCOM'
@@ -31,8 +32,7 @@ class HYCOMBase(Base):
 	@classmethod
 	def get_dimensions(cls,urlon,lllon,urlat,lllat,max_depth,dataset):
 		time_since = datetime.datetime.strptime(dataset['time'].attributes['time_origin'],'%d-%b-%Y %H:%M:%S')
-		UVTimeList.set_ref_date(time_since)
-		time = UVTimeList.time_list_from_seconds(dataset['time'][:])
+		time = UVTimeList.time_list_from_seconds(dataset['time'][:],time_since)
 		time[0] = time[1] - datetime.timedelta(hours = 3)
 		lats = LatList(dataset['latitude'][:])
 		lons = dataset['longitude'][:].data
@@ -49,7 +49,7 @@ class HYCOMBase(Base):
 		lower_lat_idx = lats.find_nearest(lllat,idx=True)
 		lats = lats[lower_lat_idx:higher_lat_idx]
 		units = dataset['water_u'].attributes['units']
-		return (time,lats,lons,depth,lower_lon_idx,higher_lon_idx,lower_lat_idx,higher_lat_idx,units)
+		return (time,lats,lons,depth,lower_lon_idx,higher_lon_idx,lower_lat_idx,higher_lat_idx,units,time_since)
 
 	@classmethod
 	def download_and_save(cls):
@@ -58,6 +58,10 @@ class HYCOMBase(Base):
 		while k < len(idx_list)-1:
 			print(k)
 			k_filename = cls.file_handler.tmp_file(cls.dataset_description+'_'+cls.location+'_data/'+str(k))
+			folder = os.path.dirname(k_filename)
+			if not os.path.exists(folder):
+			    os.makedirs(folder)
+
 			if os.path.isfile(k_filename):
 				k +=1
 				continue
@@ -75,8 +79,8 @@ class HYCOMBase(Base):
 				k +=1
 			except:
 				print('Index ',k,' encountered an error and did not save. Trying again')
+				cls.dataset = HYCOMBase.get_dataset(cls.ID)
 				continue
-
 
 class HYCOMAlaska(HYCOMBase):
 	location='Alaska'
@@ -90,7 +94,7 @@ class HYCOMAlaska(HYCOMBase):
 	ID = 'HYCOM_reg17_latest3d'
 	DepthClass = ETopo1Depth
 	dataset = HYCOMBase.get_dataset(ID)
-	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units = HYCOMBase.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
+	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,ref_date = HYCOMBase.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
 
 	@classmethod
 	def get_dataset_shape(cls):
@@ -103,21 +107,45 @@ class HYCOMAlaska(HYCOMBase):
 		ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
 		return ocean_shape
 
-
-
-class HYCOMCalifornia(HYCOMBase):
-	location='California'
+class HYCOMSouthernCalifornia(HYCOMBase):
+	location='SoCal'
 	facecolor = 'Pink'
 	urlat = 35
 	lllat = 30
-	lllon = -130
-	urlon = -125
+	lllon = -122
+	urlon = -116
 	max_depth = -700
 	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
 	ID = 'HYCOM_reg7_latest3d'
 	DepthClass = ETopo1Depth
 	dataset = HYCOMBase.get_dataset(ID)
-	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units = HYCOMBase.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
+	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,ref_date = HYCOMBase.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
+	@classmethod
+
+
+	def get_dataset_shape(cls):
+		longitude = cls.dataset['longitude'][:].data
+		longitude[longitude>180]=longitude[longitude>180]-360
+		lllat = min(cls.dataset['latitude'][:])
+		urlat = max(cls.dataset['latitude'][:])
+		lllon = min(longitude)
+		urlon = max(longitude)
+		ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
+		return ocean_shape
+
+class HYCOMMonterey(HYCOMBase):
+	location='Monterey'
+	facecolor = 'Pink'
+	urlat = 39
+	lllat = 34
+	lllon = -126
+	urlon = -121.5
+	max_depth = -700
+	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
+	ID = 'HYCOM_reg7_latest3d'
+	DepthClass = ETopo1Depth
+	dataset = HYCOMBase.get_dataset(ID)
+	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,ref_date = HYCOMBase.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
 
 	@classmethod
 	def get_dataset_shape(cls):
@@ -129,8 +157,6 @@ class HYCOMCalifornia(HYCOMBase):
 		urlon = max(longitude)
 		ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
 		return ocean_shape
-
-
 
 class HYCOMHawaii(HYCOMBase):
 	location='Hawaii'
@@ -145,7 +171,7 @@ class HYCOMHawaii(HYCOMBase):
 	PlotClass = KonaCartopy
 	DepthClass = PACIOOS
 	dataset = HYCOMBase.get_dataset(ID)
-	dataset_time,lats,lons,depth,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units = HYCOMBase.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
+	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,ref_date = HYCOMBase.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
 
 	@classmethod
 	def get_dataset_shape(cls):
@@ -170,7 +196,7 @@ class HYCOMPuertoRico(HYCOMBase):
 	PlotClass = PuertoRicoCartopy
 	DepthClass = ETopo1Depth
 	dataset = HYCOMBase.get_dataset(ID)
-	dataset_time,lats,lons,depth,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units = HYCOMBase.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
+	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,ref_date = HYCOMBase.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
 
 	@classmethod
 	def get_dataset_shape(cls):

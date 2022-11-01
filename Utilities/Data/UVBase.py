@@ -37,14 +37,14 @@ class Base(ABC):
 
 #make sure the variable axis are the proper class
 		assert isinstance(self.time,TimeList) 
-		assert isinstance(self.depth,DepthList) 
+		assert isinstance(self.depths,DepthList) 
 		assert isinstance(self.lats,LatList) 
 		assert isinstance(self.lons,LonList) 
 
 #make sure all the dimensions are consistent
 		assert self.u.shape==self.v.shape
 		assert len(self.time)==self.u.shape[0]
-		assert len(self.depth)==self.u.shape[1]
+		assert len(self.depths)==self.u.shape[1]
 		assert len(self.lats)==self.u.shape[2]
 		assert len(self.lons)==self.u.shape[3]
 
@@ -52,7 +52,6 @@ class Base(ABC):
 	@abstractmethod
 	def get_dataset(cls):
 		pass
-
 
 	@classmethod
 	@abstractmethod
@@ -102,7 +101,7 @@ class Base(ABC):
 	def subsample_depth(self,N,max_depth=None):
 		u = self.u[:,::N,:,:]
 		v = self.v[:,::N,:,:]
-		depth = self.depth[::N]
+		depth = self.depths[::N]
 		if max_depth:
 			depth_idx = depth.find_nearest(max_depth,idx=True)
 			u = u[:,:depth_idx,:,:]
@@ -112,20 +111,20 @@ class Base(ABC):
 		return self.__class__(u=u,v=v,time=self.time)
 
 	def return_u_v(self,time=None,depth=None):
-		u_holder = self.u[self.time.find_nearest(time,idx=True),self.depth.find_nearest(depth,idx=True),:,:]
-		v_holder = self.v[self.time.find_nearest(time,idx=True),self.depth.find_nearest(depth,idx=True),:,:]
+		u_holder = self.u[self.time.find_nearest(time,idx=True),self.depths.find_nearest(depth,idx=True),:,:]
+		v_holder = self.v[self.time.find_nearest(time,idx=True),self.depths.find_nearest(depth,idx=True),:,:]
 		return (u_holder,v_holder)
 
 	def return_monthly_mean(self,month,depth):
 		mask = [x.month==month for x in self.time]
-		u = self.u[mask,self.depth.find_nearest(depth,idx=True),:,:]
-		v = self.v[mask,self.depth.find_nearest(depth,idx=True),:,:]
+		u = self.u[mask,self.depths.find_nearest(depth,idx=True),:,:]
+		v = self.v[mask,self.depths.find_nearest(depth,idx=True),:,:]
 		return (np.nanmean(u,axis=0),np.nanmean(v,axis=0))
 
 	def return_monthly_std(self,month,depth):
 		mask = [x.month==month for x in self.time]
-		u = self.u[mask,self.depth.find_nearest(depth,idx=True),:,:]
-		v = self.v[mask,self.depth.find_nearest(depth,idx=True),:,:]
+		u = self.u[mask,self.depths.find_nearest(depth,idx=True),:,:]
+		v = self.v[mask,self.depths.find_nearest(depth,idx=True),:,:]
 		return (np.nanstd(u,axis=0),np.nanstd(v,axis=0))
 
 	@classmethod
@@ -168,7 +167,7 @@ class Base(ABC):
 				continue
 			u_list.append(uv_dict['u'])
 			v_list.append(uv_dict['v'])
-			time_list.append(cls.time_method(uv_dict['time']))
+			time_list.append(cls.time_method(uv_dict['time'],cls.ref_date))
 		u = np.concatenate([x for x in u_list])
 		v = np.concatenate([x for x in v_list])
 		time = flat_list(time_list)
@@ -176,7 +175,7 @@ class Base(ABC):
 		print(len(time))
 		assert u.shape==v.shape
 		assert u.shape[0] == len(time)
-		assert u.shape[1] == len(cls.depth)
+		assert u.shape[1] == len(cls.depths)
 		assert u.shape[2] == len(cls.lats)
 		assert u.shape[3] == len(cls.lons)
 		out = cls(u=u*cls.scale_factor,v=v*cls.scale_factor,time=time)
@@ -210,7 +209,7 @@ class Base(ABC):
 		out_w = np.zeros(out_u.shape)
 		data = {'U':out_u,'V':out_v,'W':out_w}
 		dimensions = {'time':[x.timestamp() for x in out_time],
-		'depth':[-x for x in self.depth],
+		'depth':[-x for x in self.depths],
 		'lat':self.lats,
 		'lon':self.lons,}		
 		return (data,dimensions)

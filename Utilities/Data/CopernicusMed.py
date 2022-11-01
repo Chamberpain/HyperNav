@@ -97,8 +97,7 @@ class CopernicusMed(Base):
 	@classmethod
 	def get_dimensions(cls,urlon,lllon,urlat,lllat,max_depth,dataset):
 		time_since = datetime.datetime.strptime(dataset['time'].attributes['units'],'minutes since %Y-%m-%d %H:%M:%S')
-		CopUVTimeList.set_ref_date(time_since)
-		time = CopUVTimeList.time_list_from_minutes(dataset['time'][:].data.tolist())
+		time = CopUVTimeList.time_list_from_minutes(dataset['time'][:].data.tolist(),time_since)
 		lats = LatList(dataset['lat'][:].data.tolist())
 		lons = LonList(dataset['lon'][:].data.tolist())
 		depths = DepthList([-x for x in dataset['depth'][:].data.tolist()])
@@ -137,6 +136,7 @@ class CopernicusMed(Base):
 				k +=1
 			except:
 				print('Index ',k,' encountered an error and did not save. Trying again')
+				cls.dataset = CopernicusMed.get_dataset()
 				continue
 
 class CreteCopernicus(CopernicusMed):

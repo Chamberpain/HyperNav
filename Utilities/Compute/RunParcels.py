@@ -13,35 +13,10 @@ from parcels import ParcelsRandom as random
 from GeneralUtilities.Compute.list import TimeList
 import os
 import geopy
-import h5py
 from GeneralUtilities.Compute.list import LatList,LonList,TimeList
-from HyperNav.Data.__init__ import ROOT_DIR as DATA_DIR
-
 
 file_handler = FilePathHandler(ROOT_DIR,'RunParcels')
 
-class ClearSky():
-	def __init__(self,month):
-		self.aot = h5py.File(os.path.join(DATA_DIR,'aot869_'+month+'_Hawaii.h5'))
-		self.percent_aot = h5py.File(os.path.join(DATA_DIR,'percent_aot869_le_0.1_'+month+'_Hawaii.h5'))
-		self.percent_clear = h5py.File(os.path.join(DATA_DIR,'percent_clear_days_'+month+'_Hawaii.h5'))
-
-		self.lat = LatList(self.aot['lat'][:,0].tolist())
-		self.lon = LonList(self.aot['lon'][0,:].tolist())
-
-	def return_data(self,data,std,lat,lon):
-		lat_idx = self.lat.find_nearest(lat,idx=True)
-		lon_idx = self.lon.find_nearest(lon,idx=True)
-		return np.random.normal(loc=data[lat_idx,lon_idx],scale=std[lat_idx,lon_idx])
-
-	def return_aot_percent(self,lat,lon):
-		return self.return_data(self.percent_aot['percent AOT869<=0.1 (mean)'],self.percent_aot['percent AOT869<=0.1 (std)'],lat,lon)
-			
-	def return_aot(self,lat,lon):
-		return self.return_data(self.aot['AOT869 (mean)'],self.aot['AOT869 (std)'],lat,lon)
-
-	def return_clear_sky(self,lat,lon):
-		return self.return_data(self.percent_clear['percent clear days (mean)'],self.percent_clear['percent clear days (std)'],lat,lon)
 
 class ParticleList(list):
 
@@ -70,13 +45,58 @@ class ParticleList(list):
 		ax.contourf(XX,YY,np.log(H),vmin=0,vmax=3)
 		return ax
 
+	def interpolated_drift_stats(self):
+		total_cycle_phase = []
+		total_distance = []
+		total_speed = []
+		for pd in self:
+			cycle_phase,distance,speed = pd.return_interpolated_drift_stats()
+			total_cycle_phase += cycle_phase
+			total_distance += distance
+			total_speed += speed
+		label_list = []
+		speed_list = []
+		distance_list = []
+		for label in np.unique(total_cycle_phase):
+			np.where(np.array(total_cycle_phase)==label)
+			label_list.append(label)
+			speed_list.append(np.array(total_speed)[np.where(np.array(total_cycle_phase)==label)[0]].mean())
+			distance_list.append(np.array(total_distance)[np.where(np.array(total_cycle_phase)==label)[0]].mean())
 
+	def closest_to_point(self,point):
+		closest_list = []
+		days_list = []
+		drift_list = []
+		new_pos_list = []
+		for ncfid in self: 
+			max_days = ncfid.time_from_start()[-1]
+			lat_center,lon_center,lat_std,lon_std = ncfid.get_cloud_center(max_days)
+			closest_list.append(geopy.distance.GreatCircleDistance(geopy.Point(lat_center,lon_center),point))
+			new_pos_list.append(geopy.Point(lat_center,lon_center))
+			days_list.append(ncfid.datetime_index()[-1])
+			drift_list.append(ncfid['z'][:].max())
+		idx = closest_list.index(min(closest_list))
+		time = days_list[idx]
+		new_pos = new_pos_list[idx]
+		drift = drift_list[idx]
+		return (time,new_pos,drift)
 
 class ParticleDataset(Dataset):
 
+	def time_from_start(self):
+		datetime_list = self.datetime_index()
+		return [datetime_list[x] - datetime_list[0] for x in range(len(datetime_list))]
+
+	def datetime_index(self):
+		return TimeList([datetime.datetime.fromtimestamp(x) for x in self['time'][:][0,:].tolist()])
+
 	def time_idx(self,timedelta):
-		time_list = TimeList.time_list_from_seconds(self.variables['time'][:][0,:].tolist())
+		time_list = self.datetime_index()
 		return time_list.find_nearest(time_list[0]+timedelta,idx=True)
+
+	def total_geopy_coords(self):
+		lats,lons = zip(self.total_coords())
+		return [geopy.Point(x,y) for x,y in zip(lats[0].tolist()[0],lons[0].tolist()[0])]
 
 	def total_coords(self):
 		return (self.variables['lat'][:],self.variables['lon'][:])
@@ -137,103 +157,77 @@ class ParticleDataset(Dataset):
 		return (np.unique(problem_idxs).shape[0]/lat.shape[0])*100 #number of problem floats/number of total floats
 
 
+	def return_interpolated_drift_stats(self):
+		cycle_phase_list = np.array(self.variables['cycle_phase'][0,:]).astype('object')
+		cycle_phase_list[cycle_phase_list==0] = 'shear'
+		cycle_phase_list[cycle_phase_list==1] = 'drift'
+		cycle_phase_list[cycle_phase_list==2] = 'shear'
+		cycle_phase_list[cycle_phase_list==3] = 'shear'
+		cycle_phase_list[cycle_phase_list==4] = 'surface'
+
+
+		time_list = self.variables['time'][0,:]
+		lat_list = self.variables['lat'][0,:]
+		lon_list = self.variables['lon'][0,:]
+		idx_list = np.where(np.roll(cycle_phase_list,1)!=cycle_phase_list)[0]
+		cycle_phase = []
+		start_pos = []
+		end_pos = []
+		start_time = []
+		end_time = []
+		distance = []
+		speed = []
+		for k in range(len(idx_list)-1):
+			cycle_phase.append(cycle_phase_list[idx_list[k]])
+			start_pos.append(geopy.Point(lat_list[idx_list[k]],lon_list[idx_list[k]]))
+			end_pos.append(geopy.Point(lat_list[idx_list[k+1]],lon_list[idx_list[k+1]]))
+			start_time.append(datetime.datetime.fromtimestamp(time_list[idx_list[k]]))
+			end_time.append(datetime.datetime.fromtimestamp(time_list[idx_list[k+1]]))
+			distance.append(geopy.distance.GreatCircleDistance(start_pos[-1],end_pos[-1]).km)
+			speed.append(distance[-1]*1000/(end_time[-1]-start_time[-1]).total_seconds())
+		return (cycle_phase,distance,speed)
+
+
+
 def DeleteParticle(particle, fieldset, time):
     particle.delete()
 
-class UVPrediction():
+def create_prediction(float_pos_dict,uv,dimensions,filename,n_particles=500,output_time_step=datetime.timedelta(minutes=15)):
 
-	def __init__(self,float_pos_dict,uv,dimensions,*args,**kwargs):
-		self.float_pos_dict = float_pos_dict
-		self.uv = uv
-		self.dimensions = dimensions
+	fieldset = FieldSet.from_data(uv, dimensions,transpose=False)
+	fieldset.mindepth = dimensions['depth'][0]
+	K_bar = 0.000000000025
+	fieldset.add_constant('Kh_meridional',K_bar)
+	fieldset.add_constant('Kh_zonal',K_bar)
+	particles = dict(lat=float_pos_dict['lat'] + np.random.normal(scale=.05, size=n_particles),
+					 lon=float_pos_dict['lon'] + np.random.normal(scale=.05, size=n_particles),
+					 time=np.array([float_pos_dict['time']] * n_particles),
+					 depth=np.array([float_pos_dict['depth']] * n_particles),
+					 min_depth=np.array([float_pos_dict['min_depth'] if 'min_depth' in float_pos_dict.keys() else 10] * n_particles, dtype=np.int32),
+					 drift_depth=np.array([float_pos_dict['drift_depth'] if 'drift_depth' in float_pos_dict.keys() else 500] * n_particles, dtype=np.int32),
+					 vertical_speed=np.array([float_pos_dict['vertical_speed'] if 'vertical_speed' in float_pos_dict.keys() else 0.076] * n_particles, dtype=np.float32),
+					 surface_time=np.array([float_pos_dict['surface_time'] if 'surface_time' in float_pos_dict.keys() else 2 * 3600] * n_particles, dtype=np.int32),
+					 cycle_time=np.array([float_pos_dict['total_cycle_time'] if 'total_cycle_time' in float_pos_dict.keys() else 2 * 86400] * n_particles, dtype=np.float32),
+					 max_depth=np.array([float_pos_dict['max_depth'] if 'max_depth' in float_pos_dict.keys() else 500] * n_particles, dtype=np.float32),
+					 )
+	particles['cycle_time'] -= \
+	(particles['drift_depth'] / particles['vertical_speed']) \
+	+ particles['surface_time'] + \
+	abs(particles['max_depth']-particles['drift_depth'])/particles['vertical_speed'] + \
+	abs(particles['max_depth'])*particles['vertical_speed']
 
-	def create_prediction(self,n_particles=500,filename = 'Uniform_out.nc',output_time_step=datetime.timedelta(minutes=15)):
-		fieldset = FieldSet.from_data(self.uv, self.dimensions,transpose=False)
-		fieldset.mindepth = self.dimensions['depth'][0]
-		K_bar = 0.000000000025
-		fieldset.add_constant('Kh_meridional',K_bar)
-		fieldset.add_constant('Kh_zonal',K_bar)
-		particles = dict(lat=self.float_pos_dict['lat'] + np.random.normal(scale=.05, size=n_particles),
-						 lon=self.float_pos_dict['lon'] + np.random.normal(scale=.05, size=n_particles),
-						 time=np.array([self.float_pos_dict['time']] * n_particles),
-						 depth=np.array([self.float_pos_dict['depth']] * n_particles),
-						 min_depth=np.array([self.float_pos_dict['min_depth'] if 'min_depth' in self.float_pos_dict.keys() else 10] * n_particles, dtype=np.int32),
-						 drift_depth=np.array([self.float_pos_dict['drift_depth'] if 'drift_depth' in self.float_pos_dict.keys() else 500] * n_particles, dtype=np.int32),
-						 vertical_speed=np.array([self.float_pos_dict['vertical_speed'] if 'vertical_speed' in self.float_pos_dict.keys() else 0.076] * n_particles, dtype=np.float32),
-						 surface_time=np.array([self.float_pos_dict['surface_time'] if 'surface_time' in self.float_pos_dict.keys() else 2 * 3600] * n_particles, dtype=np.int32),
-						 cycle_time=np.array([self.float_pos_dict['total_cycle_time'] if 'total_cycle_time' in self.float_pos_dict.keys() else 2 * 86400] * n_particles, dtype=np.float32),
-						 max_depth=np.array([self.float_pos_dict['max_depth'] if 'max_depth' in self.float_pos_dict.keys() else 500] * n_particles, dtype=np.float32),
-						 )
-		particles['cycle_time'] -= \
-		(particles['drift_depth'] / particles['vertical_speed']) + particles['surface_time'] + \
-		abs(particles['max_depth']+particles['drift_depth'])*particles['vertical_speed'] + \
-		abs(particles['max_depth'])*particles['vertical_speed']
+	particle_set = ParticleSet.from_list(fieldset, pclass=ArgoParticle, **particles)
+	kernels = ArgoVerticalMovement + particle_set.Kernel(AdvectionRK4)
+	output_file = particle_set.ParticleFile(name=filename,
+		outputdt=output_time_step)
+	particle_set.execute(kernels,
+						  runtime=datetime.timedelta(seconds=(float_pos_dict['end_time']-float_pos_dict['time'])),
+						  dt=datetime.timedelta(minutes=3),
+						  output_file=output_file,
+						  recovery={ErrorCode.ErrorOutOfBounds: DeleteParticle})
+	output_file.export()
+	output_file.close()
 
-		particle_set = ParticleSet.from_list(fieldset, pclass=ArgoParticle, **particles)
-		kernels = ArgoVerticalMovement + particle_set.Kernel(AdvectionRK4)
-		output_file = particle_set.ParticleFile(name=file_handler.tmp_file(filename),
-			outputdt=output_time_step)
-		particle_set.execute(kernels,
-							  runtime=datetime.timedelta(seconds=(self.float_pos_dict['end_time']-self.float_pos_dict['time'])),
-							  dt=datetime.timedelta(minutes=3),
-							  output_file=output_file,
-							  recovery={ErrorCode.ErrorOutOfBounds: DeleteParticle})
-		output_file.export()
-		output_file.close()
-
-	def calculate_prediction(self):
-		predictions = []
-		self.create_prediction(vert_move_dict[depth_level],days=days)
-		nc = ParticleDataset(file_handler.tmp_file('Uniform_out.nc'))
-		nc['cycle_age'][0,:].data
-		holder = nc['time'][0,:]
-		assert ([x-holder[0] for x in holder][:10] == nc['cycle_age'][0,:].data[:10]).all()
-		#time must be passing the same for the float
-		for k,time in enumerate([datetime.timedelta(days=x) for x in np.arange(.2,days,.1)]):
-			try: 
-				lat_center,lon_center,lat_std,lon_std = nc.get_cloud_center(time)
-			except ValueError:
-				continue
-			date_string = (self.float_pos_dict['datetime']+time).isoformat()
-			id_string = int(str(self.float_pos_dict['ID'])+'0'+str(depth_level)+'0'+str(k))
-			dummy_dict = {"prediction_id":id_string,
-			"datetime":date_string,
-			"lat":float(lat_center),
-			"lon":float(lon_center),
-			"uncertainty":0,
-			"model":'HYCOM'+'_'+str(depth_level)}
-			predictions.append(dummy_dict)
-		return predictions
-
-	def upload_single_depth_prediction(self,depth_level):
-		SiteAPI.delete_by_model('HYCOM'+'_'+str(depth_level),self.float_pos_dict['ID'])
-		predictions = self.calculate_prediction(depth_level,days=1)
-		SiteAPI.upload_prediction([x for x in predictions if x['model']=='HYCOM'+'_'+str(depth_level)],self.float_pos_dict['ID'])
-
-	def upload_multi_depth_prediction(self):
-		for depth_level in vert_move_dict.keys():
-			self.upload_single_depth_prediction(depth_level)
-
-	def plot_multi_depth_prediction(self):
-		color_dict = {50:'red',100:'purple',200:'blue',300:'teal',
-		400:'pink',500:'tan',600:'orange',700:'yellow'}
-		self.create_prediction(vert_move_dict[50])
-		nc = ParticleDataset(file_handler.tmp_file('Uniform_out.nc'))
-		XX,YY,ax = HypernavCartopy(nc,self.float_pos_dict,lon_grid=self.uv.lons,lat_grid=self.uv.lats,pad=-0.5).get_map()
-		depth = Depth()
-		XX1,YY1 = np.meshgrid(depth.x,depth.y)
-		plt.contour(XX1,YY1,depth.z,[-1*self.float_pos_dict['park_pressure']],colors=('k',),linewidths=(4,),zorder=4,label='Drift Depth Contour')
-		plt.contourf(XX1,YY1,np.ma.masked_greater(depth.z/1000.,0),zorder=3,cmap=plt.get_cmap('Greys'))
-		plt.colorbar(label='Depth (km)')
-		plt.scatter(self.float_pos_dict['lon'],self.float_pos_dict['lat'],marker='x',c='k',linewidth=6,s=250,zorder=6,label='Location')
-		for k in range(particle_num):
-			lats = nc['lat'][k,:]
-			lons = nc['lon'][k,:]
-			plt.plot(lons,lats,linewidth=2,zorder=10)
-		plt.title('Float '+str(self.float_pos_dict['ID'])+' at '+datetime.datetime.now().isoformat())
-		savefile =str(self.float_pos_dict['ID'])+'_Multidepth_'+str(self.float_pos_dict['profile'])		
-		plt.savefig(file_handler.out_file(savefile))
-		plt.close()	
 
 class ArgoParticle(JITParticle):
 	# Phase of cycle: init_descend=0, drift=1, profile_descend=2, profile_ascend=3, transmit=4
