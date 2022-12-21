@@ -138,3 +138,137 @@ def HawaiiParticlesCompute():
 	plt.legend()
 	plt.savefig(file_handler.out_file('HawaiiStats'))
 	plt.close()
+
+def HawaiiArgoErrorStatsCompute():
+	from GeneralUtilities.Data.pickle_utilities import load,save
+
+
+def HawaiiArgoErrorStatsCalculate():
+	from GeneralUtilities.Data.Lagrangian.Argo.array_class import ArgoArray
+	from HyperNav.Utilities.Data.Instrument import ArgoFloat
+	from HyperNav.Utilities.Compute.RunParcels import ParticleDataset,create_prediction
+	import geopy
+	from GeneralUtilities.Data.pickle_utilities import load,save
+	import gc
+	from parcels.tools.statuscodes import OutOfBoundsError, OutOfTimeError
+	import xarray
+	from geopy.distance import GreatCircleDistance
+	from geopy import Point
+	import pandas as pd
+	from GeneralUtilities.Compute.list import LatList,LonList
+
+
+
+
+	array = ArgoArray.compile()
+	array = array.get_regional_subset(HYCOMHawaii.ocean_shape,HYCOMHawaii.location)
+	dict_list = []
+	for argo_float in array.values():
+		argo_float = ArgoFloat(argo_float)
+		dict_list += argo_float.return_float_pos_dict_list(HYCOMHawaii.ocean_shape)
+	results = []
+	for k,(start_time, end_time, prof_dict) in  enumerate(dict_list):
+		if start_time-datetime.timedelta(days=5)<min(HYCOMHawaii.dataset_time):
+			continue
+		filename = file_handler.tmp_file('Argo_Drifter_Error_'+str(k))
+		try:
+			results.append(load(filename))
+		except FileNotFoundError:
+			uv_class = HYCOMHawaii.load(start_time-datetime.timedelta(days=5),end_time+datetime.timedelta(days=5))
+			data,dimensions = uv_class.return_parcels_uv(start_time-datetime.timedelta(days=5),end_time+datetime.timedelta(days=5))
+			try:
+				create_prediction(prof_dict,data,dimensions,file_handler.tmp_file('Uniform_out.zarr'),out_of_bounds_recovery=True)
+			except OutOfBoundsError:
+				print('I am out of bounds')
+				print('lat ,',prof_dict['lat'])
+				print('lon ,',prof_dict['lon'])
+				continue
+			except OutOfTimeError:
+				print('I am out of time')
+				continue
+			except IndexError:
+				print('There was an index problem')
+				continue
+			nc = ParticleDataset(xarray.open_zarr(file_handler.tmp_file('Uniform_out.zarr')))
+			try:
+				lat,lon,dum,dum = nc.get_cloud_center(end_time-start_time)
+			except TypeError:
+				print('I encountered a type error. Continuing')
+				continue
+			data = (start_time,geopy.Point(prof_dict['target_lat'],prof_dict['target_lon']),geopy.Point(lat,lon))
+			save(filename,data)
+			results.append(data)
+			gc.collect(generation=2)
+	residuals = []
+	for time,target_pos,pos in results:
+		dx,dy = dx_dy_distance(target_pos,pos)
+		total_dist = GreatCircleDistance(target_pos,pos).km
+		if total_dist>100:
+			print(target_pos)
+			print(pos)
+		residuals.append((dx,dy,total_dist,time,target_pos.latitude,target_pos.longitude))
+	dx,dy,total_dist,time,latitude,longitude = zip(*residuals)
+
+	
+	df = pd.DataFrame({'dx':dx,'dy':dy,'dist':total_dist,'time':time,'lat':lat,'lon':lon})
+	df = df.set_index('time').resample('5d').mean().dropna()
+
+	lats = LatList(np.linspace(HYCOMHawaii.lllat,HYCOMHawaii.urlat,20))
+	lons = LonList(np.linspace(HYCOMHawaii.lllon,HYCOMHawaii.urlon,20))
+	XX,YY = np.meshgrid(lons,lats)
+	lat_idxs = np.array([lats.find_nearest(x,idx=True) for x in latitude])
+	lon_idxs = np.array([lons.find_nearest(x,idx=True) for x in longitude])
+
+	output = np.zeros([len(lats),len(lons)])
+	for lat_idx in range(len(lats)):
+		for lon_idx in range(len(lons)):
+			truth_array = (lat_idxs == lat_idx)&(lon_idxs == lon_idx)
+			data = np.array(total_dist)[truth_array].tolist()
+			if data:
+				output[lon_idx,lat_idx] = np.mean(data)
+	plt.pcolor(XX,YY,output)
+
+def HawaiiAOMLErrorStats():
+	from GeneralUtilities.Data.Lagrangian.AOML.aoml_read import AOMLDate,Position,Speed
+	from GeneralUtilities.Data.Lagrangian.AOML.aoml_array import AOMLArray
+	from HyperNav.Utilities.Data.Instrument import AOMLFloat
+	from HyperNav.Utilities.Compute.RunParcels import ParticleDataset,create_prediction
+	import geopy
+	from GeneralUtilities.Data.pickle_utilities import load,save
+	import gc
+	from parcels.tools.statuscodes import OutOfTimeError
+	array = AOMLArray.compile()
+	array = array.get_regional_subset(HYCOMHawaii.ocean_shape,HYCOMHawaii.location)
+	dict_list = []
+	for aoml_float in array.values():
+		aoml_float = AOMLFloat(aoml_float,skip=6)
+		dict_list += aoml_float.return_float_pos_dict_list(HYCOMHawaii.ocean_shape)
+	results = []
+	for k,(start_time, end_time, prof_dict) in  enumerate(dict_list):
+		if start_time<min(HYCOMHawaii.dataset_time):
+			continue
+		filename = file_handler.tmp_file('AOML_Drifter_Error_'+str(k))
+		try:
+			results.append(load(filename))
+		except FileNotFoundError:
+			uv_class = HYCOMHawaii.load(start_time-datetime.timedelta(days=2),end_time+datetime.timedelta(days=2))
+			data,dimensions = uv_class.return_parcels_uv(start_time-datetime.timedelta(days=1),end_time+datetime.timedelta(days=1))
+			try:
+				create_prediction(prof_dict,data,dimensions,file_handler.tmp_file('Uniform_out.nc'))
+			except OutOfTimeError:
+				gc.collect(generation=2)
+				continue
+			except IndexError:
+				gc.collect(generation=2)
+				continue
+			nc = ParticleDataset(file_handler.tmp_file('Uniform_out.nc'))
+			try:
+				lat,lon,dum,dum = nc.get_cloud_center(end_time-start_time)
+			except TypeError:
+				print('I encountered a type error. Continuing')
+				gc.collect(generation=2)
+				continue
+			data = (start_time,geopy.Point(prof_dict['target_lat'],prof_dict['target_lon']),geopy.Point(lat,lon))
+			save(filename,data)
+			results.append(data)
+			gc.collect(generation=2)

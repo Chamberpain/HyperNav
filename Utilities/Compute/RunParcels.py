@@ -14,6 +14,8 @@ from GeneralUtilities.Compute.list import TimeList
 import os
 import geopy
 from GeneralUtilities.Compute.list import LatList,LonList,TimeList
+from xarray import Dataset
+
 
 file_handler = FilePathHandler(ROOT_DIR,'RunParcels')
 
@@ -88,7 +90,7 @@ class ParticleDataset(Dataset):
 		return [datetime_list[x] - datetime_list[0] for x in range(len(datetime_list))]
 
 	def datetime_index(self):
-		return TimeList([datetime.datetime.fromtimestamp(x) for x in self['time'][:][0,:].tolist()])
+		return TimeList([datetime.datetime.fromtimestamp(x/10.**9) for x in self['time'].values[0,:].tolist()])
 
 	def time_idx(self,timedelta):
 		time_list = self.datetime_index()
@@ -99,7 +101,7 @@ class ParticleDataset(Dataset):
 		return [geopy.Point(x,y) for x,y in zip(lats[0].tolist()[0],lons[0].tolist()[0])]
 
 	def total_coords(self):
-		return (self.variables['lat'][:],self.variables['lon'][:])
+		return (self['lat'].values,self['lon'].values)
 
 	def get_cloud_snapshot(self,timedelta):
 		time_idx = self.time_idx(timedelta)
@@ -108,10 +110,10 @@ class ParticleDataset(Dataset):
 
 	def get_cloud_center(self,timedelta):
 		lats,lons = self.get_cloud_snapshot(timedelta)
-		lat_center = lats.mean()
-		lat_std = lats.std()
-		lon_center = lons.mean()
-		lon_std = lons.std()
+		lat_center = np.nanmean(lats)
+		lat_std = np.nanstd(lats)
+		lon_center = np.nanmean(lons)
+		lon_std = np.nanstd(lons)
 		return (lat_center,lon_center,lat_std,lon_std)
 
 	def get_depth_snapshot(self,timedelta):
@@ -190,9 +192,9 @@ class ParticleDataset(Dataset):
 
 
 def DeleteParticle(particle, fieldset, time):
-    particle.delete()
+	particle.delete()
 
-def create_prediction(float_pos_dict,uv,dimensions,filename,n_particles=500,output_time_step=datetime.timedelta(minutes=15)):
+def create_prediction(float_pos_dict,uv,dimensions,filename,n_particles=500,output_time_step=datetime.timedelta(minutes=15),out_of_bounds_recovery=True):
 
 	fieldset = FieldSet.from_data(uv, dimensions,transpose=False)
 	fieldset.mindepth = dimensions['depth'][0]
@@ -220,12 +222,18 @@ def create_prediction(float_pos_dict,uv,dimensions,filename,n_particles=500,outp
 	kernels = ArgoVerticalMovement + particle_set.Kernel(AdvectionRK4)
 	output_file = particle_set.ParticleFile(name=filename,
 		outputdt=output_time_step)
-	particle_set.execute(kernels,
-							  runtime=datetime.timedelta(seconds=(float_pos_dict['end_time']-float_pos_dict['time'])),
+
+	if out_of_bounds_recovery:
+		particle_set.execute(kernels,
+						  runtime=datetime.timedelta(seconds=(float_pos_dict['end_time']-float_pos_dict['time'])),
 						  dt=datetime.timedelta(minutes=3),
 						  output_file=output_file,
 						  recovery={ErrorCode.ErrorOutOfBounds: DeleteParticle})
-	output_file.export()
+	else:
+		particle_set.execute(kernels,
+						  runtime=datetime.timedelta(seconds=(float_pos_dict['end_time']-float_pos_dict['time'])),
+						  dt=datetime.timedelta(minutes=3),
+						  output_file=output_file)		
 	output_file.close()
 
 

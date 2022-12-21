@@ -203,6 +203,21 @@ class HYCOMMonterey(HYCOMBase):
 		ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
 		return ocean_shape
 
+
+class HYCOMGOM(HYCOMBase):
+	location='GOM'
+	urlat = 28
+	lllat = 26
+	lllon = -93
+	urlon = -90.5
+	max_depth = -2500
+	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
+	ID = 'HYCOM_reg1_latest3d'
+	PlotClass = GOMCartopy
+	DepthClass = ETopo1Depth
+	dataset = HYCOMBase.get_dataset(ID)
+	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,ref_date = HYCOMBase.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
+
 class HYCOMHawaii(HYCOMBase):
 	location='Hawaii'
 	facecolor = 'blue'
@@ -210,7 +225,7 @@ class HYCOMHawaii(HYCOMBase):
 	lllat = 16
 	lllon = -159
 	urlon = -154
-	max_depth = -700
+	max_depth = -2500
 	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
 	ID = 'HYCOM_reg6_latest3d'
 	PlotClass = KonaCartopy

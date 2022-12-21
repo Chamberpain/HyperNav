@@ -1,7 +1,7 @@
 from HyperNav.Utilities.Data.API import SiteAPI
 from GeneralUtilities.Compute.list import TimeList, LatList, LonList,DepthList
 import datetime
-from GeneralUtilities.Data.Lagrangian.Argo.argo_read import ArgoReader,aggregate_argo_list
+from GeneralUtilities.Data.Lagrangian.Argo.array_class import ArgoArray
 import shapely.geometry
 import geopy
 
@@ -41,27 +41,43 @@ class FloatBase():
 					'time': start_time, 'end_time': end_time, 'depth': 10,'min_depth': 10, 'drift_depth': abs(drift_depth), 'max_depth':abs(self.max_depth),
 					 'surface_time': self.surface_time,'total_cycle_time': total_cycle_time,'vertical_speed':vertical_speed,
 					 }
-				dict_list.append(argo_cfg)
+				dict_list.append((self.time[k],self.time[k+1],argo_cfg))
 			else:
 				print('point outside domain, advancing')
 		return dict_list
 
+class AOMLFloat(FloatBase):
+	max_depth = -10
+	def __init__(self,argo_float,*args,**kwargs):
+		self.time = TimeList(argo_float.prof.date)
+		lats,lons = zip(*[(x.latitude,x.longitude) for x in argo_float.prof.pos])
+		self.lons = LonList(lons)
+		self.lats = LatList(lats)
+		self.drift_depths = DepthList([-10]*(len(lons)-1))
+		self.surface_time = 300 * 3600
+		super().__init__(*args,**kwargs)
+
 class ArgoFloat(FloatBase):
 	max_depth = -2000
 	def __init__(self,argo_float,*args,**kwargs):
-		self.time = TimeList(argo_float.prof.date._list)
-		lats,lons = zip(*[(x.latitude,x.longitude) for x in argo_float.prof.pos._list])
+		self.time = TimeList(argo_float.prof.date)
+		lats,lons = zip(*[(x.latitude,x.longitude) for x in argo_float.prof.pos])
 		self.lons = LonList(lons)
 		self.lats = LatList(lats)
-		if not argo_float.tech.drift_depth._list:	#if drift depth is empty
+		try:
+			if not argo_float.tech.drift_depth:	#if drift depth is empty
+				self.drift_depths = DepthList([-1000]*(len(lons)-1))
+			else:
+				self.drift_depths = DepthList([-x for x in argo_float.tech.drift_depth._list])
+		except AttributeError: #some argo files do not have tech files
 			self.drift_depths = DepthList([-1000]*(len(lons)-1))
-		else:
-			self.drift_depths = DepthList([-x for x in argo_float.tech.drift_depth._list])
-		if argo_float.meta.positioning_system is 'ARGOS':
+		if argo_float.meta.positioning_system == 'ARGOS':
 			self.surface_time = 8 * 3600
 		else:
 			self.surface_time = .25 * 3600
 		super().__init__(*args,**kwargs)
+
+
 
 class HyperNavFloat(FloatBase):
 	surface_time = 2 * 3600
