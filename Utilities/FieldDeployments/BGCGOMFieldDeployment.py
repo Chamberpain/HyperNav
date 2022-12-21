@@ -1,51 +1,35 @@
+from HyperNav.Utilities.Data.HYCOM import HYCOMGOM
+from GeneralUtilities.Data.Filepath.instance import FilePathHandler
 from HyperNav.Utilities.Data.__init__ import ROOT_DIR
-import matplotlib.pyplot as plt
-import datetime
-from GeneralUtilities.Filepath.instance import FilePathHandler
-from HyperNav.Utilities.FieldDeployments.FieldDeploymentBase import mean_monthly_plot,quiver_movie,shear_movie,eke_plots,pdf_particles_compute
-from HyperNav.Utilities.Compute.RunParcels import UVPrediction,ParticleDataset
-from HyperNav.Utilities.Utilities import HypernavFileHandler
-import cartopy.crs as ccrs
-import numpy as np
-import os
-from HyperNav.Utilities.Compute.ArgoBehavior import ArgoVerticalMovement
-from GeneralUtilities.Plot.Cartopy.regional_plot import RegionalBase
-from HyperNav.Utilities.Data.HYCOM import HYCOMBase
-from GeneralUtilities.Data.depth.depth_utilities import ETopo1Depth
+from GeneralUtilities.Compute.Depth.depth_utilities import ETopo1Depth
 file_handler = FilePathHandler(ROOT_DIR,'HypernavGOMDeployment')
-from GeneralUtilities.Compute.list import TimeList, LatList, LonList, DepthList,flat_list
-from HyperNav.Utilities.Data.UVBase import UVTimeList
-from HyperNav.Utilities.Compute.RunParcels import ParticleList,UVPrediction,ParticleDataset
-import shapely.geometry
+import geopy
+from HyperNav.Utilities.Compute.RunParcels import create_prediction,ParticleList,ParticleDataset
+import datetime
 
 
-class GOMCartopy(RegionalBase):
-	llcrnrlon=-87
-	llcrnrlat=23
-	urcrnrlon=-84
-	urcrnrlat=25
-	def __init__(self,*args,**kwargs):
-		print('I am plotting GOM')
-		super().__init__(*args,**kwargs)
+	def make_prediction(self,start_time,start_point,profile_num,run):
+		start_point = geopy.Point(26.947,-91.778)
+		start_time = datetime.datetime(2022,12,5)
+		end_time = datetime.datetime(2022,12,14)
+		uv_instance = HYCOMGOM.load(start_time-datetime.timedelta(days=2),end_time)
+		surface_time = 5400
+		vertical_speed = 0.076
+		data,dimensions = uv_instance.return_parcels_uv(start_time,end_time)
+		total_cycle_time = 3600*24*10
+		argo_cfg = {
+					'lat': start_point.latitude, 'lon': start_point.longitude,
+					'time': start_time.timestamp(), 'end_time': end_time.timestamp(), 'depth': 10, 'min_depth': 10, 
+					'drift_depth': abs(1500),'max_depth': abs(2000),
+					'surface_time': surface_time, 'total_cycle_time': total_cycle_time,
+								'vertical_speed': vertical_speed,
+								}
+		prediction = create_prediction(argo_cfg,data,dimensions,file_handler.tmp_file('data_run'))
+		gc.collect(generation=2)
 
 
-class HYCOMGOM(HYCOMBase):
-	location='GOM'
-	urlat = 25
-	lllat = 20
-	lllon = -86
-	urlon = -82
-	max_depth = -2500
-	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
-	ID = 'HYCOM_reg1_latest3d'
-	PlotClass = GOMCartopy
-	DepthClass = ETopo1Depth
-	dataset = HYCOMBase.get_dataset(ID)
-	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units = HYCOMBase.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
 
 
-date_start = datetime.datetime(2020,11,1)
-date_end = datetime.datetime(2020,12,1)
 
 
 def gom_mean_monthly_plot():

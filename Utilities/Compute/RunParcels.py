@@ -221,7 +221,7 @@ def create_prediction(float_pos_dict,uv,dimensions,filename,n_particles=500,outp
 	output_file = particle_set.ParticleFile(name=filename,
 		outputdt=output_time_step)
 	particle_set.execute(kernels,
-						  runtime=datetime.timedelta(seconds=(float_pos_dict['end_time']-float_pos_dict['time'])),
+							  runtime=datetime.timedelta(seconds=(float_pos_dict['end_time']-float_pos_dict['time'])),
 						  dt=datetime.timedelta(minutes=3),
 						  output_file=output_file,
 						  recovery={ErrorCode.ErrorOutOfBounds: DeleteParticle})

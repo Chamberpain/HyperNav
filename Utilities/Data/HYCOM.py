@@ -1,5 +1,5 @@
 from HyperNav.Utilities.Data.UVBase import Base, UVTimeList
-from GeneralUtilities.Plot.Cartopy.regional_plot import CreteCartopy,KonaCartopy,PuertoRicoCartopy, TahitiCartopy
+from GeneralUtilities.Plot.Cartopy.regional_plot import GOMCartopy,CreteCartopy,KonaCartopy,PuertoRicoCartopy, TahitiCartopy
 from GeneralUtilities.Compute.Depth.depth_utilities import PACIOOS,ETopo1Depth
 import numpy as np 
 import datetime
@@ -82,6 +82,37 @@ class HYCOMBase(Base):
 				cls.dataset = HYCOMBase.get_dataset(cls.ID)
 				continue
 
+	@classmethod
+	def download_recent(cls):
+		idx_list = cls.dataset_time.return_time_list()
+		k = len(idx_list)-10
+		while k < len(idx_list)-1:
+			print(k)
+			k_filename = cls.file_handler.tmp_file(cls.dataset_description+'_'+cls.location+'_data/'+str(k))
+			folder = os.path.dirname(k_filename)
+			if not os.path.exists(folder):
+			    os.makedirs(folder)
+
+			if os.path.isfile(k_filename):
+				k +=1
+				continue
+			try:
+				u_holder = cls.dataset['water_u'][idx_list[k]:idx_list[k+1]
+				,:(len(cls.depths))
+				,cls.lllat_idx:cls.urlat_idx
+				,cls.lllon_idx:cls.urlon_idx]
+				v_holder = cls.dataset['water_v'][idx_list[k]:idx_list[k+1]
+				,:(len(cls.depths))
+				,cls.lllat_idx:cls.urlat_idx
+				,cls.lllon_idx:cls.urlon_idx]
+				with open(k_filename, 'wb') as f:
+					pickle.dump({'u':u_holder['water_u'].data,'v':v_holder['water_v'].data, 'time':u_holder['time'].data},f)
+				k +=1
+			except:
+				print('Index ',k,' encountered an error and did not save. Trying again')
+				cls.dataset = HYCOMBase.get_dataset(cls.ID)
+				continue
+
 class HYCOMAlaska(HYCOMBase):
 	location='Alaska'
 	facecolor = 'brown'
@@ -132,6 +163,20 @@ class HYCOMSouthernCalifornia(HYCOMBase):
 		urlon = max(longitude)
 		ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
 		return ocean_shape
+
+class HYCOMGOM(HYCOMBase):
+	location='GOM'
+	urlat = 27.5
+	lllat = 25.5
+	lllon = -93.5
+	urlon = -90.5
+	max_depth = -2500
+	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
+	ID = 'HYCOM_reg1_latest3d'
+	PlotClass = GOMCartopy
+	DepthClass = ETopo1Depth
+	dataset = HYCOMBase.get_dataset(ID)
+	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,ref_date = HYCOMBase.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
 
 class HYCOMMonterey(HYCOMBase):
 	location='Monterey'
