@@ -13,6 +13,8 @@ from socket import timeout
 import os
 import pickle
 import shapely.geometry
+import gsw
+import matplotlib.pyplot as plt
 
 
 
@@ -113,6 +115,38 @@ class HYCOMBase(Base):
 				cls.dataset = HYCOMBase.get_dataset(cls.ID)
 				continue
 
+	@classmethod
+	def get_sal_temp_profiles(cls,lat,lon,start_date,end_date):
+		lon_idx = cls.lons.find_nearest(lon,idx=True)
+		lat_idx = cls.lats.find_nearest(lat,idx=True)
+		depth_idx = cls.depths.find_nearest(-700,idx=True)
+		time_start_idx = cls.dataset_time.find_nearest(start_date,idx=True)
+		time_end_idx = cls.dataset_time.find_nearest(end_date,idx=True)
+
+		fig, ax1 = plt.subplots()
+		ax1.set_xlabel('Salinity (psu)', color='tab:red')
+		ax1.set_ylabel('Depth (m)')
+		sal_data = 	cls.dataset['salinity']['salinity'].data[time_start_idx:time_end_idx,:depth_idx,lat_idx,lon_idx]
+		sal_data = sal_data.mean(axis=0).flatten()
+		ax1.plot(sal_data, cls.depths[:depth_idx], color='tab:red')
+		ax1.tick_params(axis='x', labelcolor='tab:red')
+
+		ax2 = ax1.twiny()  # instantiate a second axes that shares the same x-axis
+		ax2.set_xlabel(r'$\theta_0\ (c)$', color='tab:blue')  # we already handled the x-label with ax1
+		temp_data = cls.dataset['water_temp']['water_temp'].data[time_start_idx:time_end_idx,:depth_idx,lat_idx,lon_idx]
+		temp_data = temp_data.mean(axis=0).flatten()
+
+		ax2.plot(temp_data, cls.depths[:depth_idx], color='tab:blue')
+		ax2.tick_params(axis='x', labelcolor='tab:blue')
+		fig.tight_layout()  # otherwise the right y-label is slightly clipped
+		gsw.p_from_z(cls.depths,lat)
+		density = gsw.density.sigma0(sal_data,temp_data)
+		fig1, ax1 = plt.subplots()
+		ax1.plot(density,cls.depths[:depth_idx])
+		plt.xlabel(r'$\sigma_0\ (kg\ m^{-3})$')
+		plt.ylabel('Depth (m)')
+		return (fig,fig1)
+
 class HYCOMAlaska(HYCOMBase):
 	location='Alaska'
 	facecolor = 'brown'
@@ -151,9 +185,8 @@ class HYCOMSouthernCalifornia(HYCOMBase):
 	DepthClass = ETopo1Depth
 	dataset = HYCOMBase.get_dataset(ID)
 	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,ref_date = HYCOMBase.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
+
 	@classmethod
-
-
 	def get_dataset_shape(cls):
 		longitude = cls.dataset['longitude'][:].data
 		longitude[longitude>180]=longitude[longitude>180]-360

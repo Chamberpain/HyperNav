@@ -26,3 +26,4 @@ ax.scatter(lon_list[-1],lat_list[-1],c='black',marker='s',s=400,zorder=21)
 ax.scatter(lon_list[-1],lat_list[-1],c='pink',marker='s',s=300,zorder=21)
 
 plt.colorbar(mappable=pbc,label='Drift Depth')
+plt.show()

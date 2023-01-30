@@ -55,8 +55,12 @@ class ControlBase():
 		drift_depth_list = []
 		start_point = deepcopy(deployed_point)
 		for profile in range(60):
-			self.make_prediction(start_time,start_point,profile,run)
-			pl = self.load_prediction(profile,run)
+			try:
+				pl = self.load_prediction(profile,run)
+				print('loaded profile ',profile)
+			except FileNotFoundError:
+				self.make_prediction(start_time,start_point,profile,run)
+				pl = self.load_prediction(profile,run)
 			start_time,start_point,drift_depth = pl.closest_to_point(deployed_point)
 			print('new start point is ')
 			print(start_point)

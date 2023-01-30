@@ -15,13 +15,16 @@ import os
 import geopy
 from GeneralUtilities.Compute.list import LatList,LonList,TimeList
 from xarray import Dataset
-
-
+import zarr
 file_handler = FilePathHandler(ROOT_DIR,'RunParcels')
-
+from HyperNav.Utilities.Compute.__init__ import ROOT_DIR as COMPUTE_DIR
+compute_file_handler = FilePathHandler(COMPUTE_DIR,'RunParcels')
 
 class ParticleList(list):
-
+	"""
+	This is a list subclass that takes a bunch of Particle Datasets and performs operations
+	on all elements in the list
+	"""
 	def get_cloud_snapshot(self,timedelta):
 		lats = []
 		lons = []
@@ -83,14 +86,22 @@ class ParticleList(list):
 		drift = drift_list[idx]
 		return (time,new_pos,drift)
 
-class ParticleDataset(Dataset):
+class ParticleDataset():
+	"""
+	This is a zarr subclass that can intuitively handle the saved zarr output from parcels.
+	"""
+	def __init__(self,filename):
+		self.filename = filename
+
+	def zarr_load(self,variable):
+		return zarr.load(self.filename).get(variable)
 
 	def time_from_start(self):
 		datetime_list = self.datetime_index()
 		return [datetime_list[x] - datetime_list[0] for x in range(len(datetime_list))]
 
 	def datetime_index(self):
-		return TimeList([datetime.datetime.fromtimestamp(x/10.**9) for x in self['time'].values[0,:].tolist()])
+		return TimeList([datetime.datetime.fromtimestamp(x) for x in self.zarr_load('time')[0,:].tolist()])
 
 	def time_idx(self,timedelta):
 		time_list = self.datetime_index()
@@ -101,7 +112,7 @@ class ParticleDataset(Dataset):
 		return [geopy.Point(x,y) for x,y in zip(lats[0].tolist()[0],lons[0].tolist()[0])]
 
 	def total_coords(self):
-		return (self['lat'].values,self['lon'].values)
+		return (self.zarr_load('lat'),self.zarr_load('lon'))
 
 	def get_cloud_snapshot(self,timedelta):
 		time_idx = self.time_idx(timedelta)
