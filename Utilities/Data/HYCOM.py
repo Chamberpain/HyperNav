@@ -150,11 +150,11 @@ class HYCOMBase(Base):
 class HYCOMAlaska(HYCOMBase):
 	location='Alaska'
 	facecolor = 'brown'
-	urlat = 70
-	lllat = 60
-	lllon = -150
-	urlon = -140
-	max_depth = -700
+	urlat = 75
+	lllat = 70
+	lllon = -155
+	urlon = -128
+	max_depth = -1500
 	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
 	ID = 'HYCOM_reg17_latest3d'
 	DepthClass = ETopo1Depth
