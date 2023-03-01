@@ -58,8 +58,8 @@ class HYCOMBase(Base):
 		idx_list = cls.dataset_time.return_time_list()
 		k = 0
 		while k < len(idx_list)-1:
-			print(k)
 			k_filename = cls.file_handler.tmp_file(cls.dataset_description+'_'+cls.location+'_data/'+str(k))
+			print(k_filename)
 			folder = os.path.dirname(k_filename)
 			if not os.path.exists(folder):
 			    os.makedirs(folder)
@@ -89,8 +89,8 @@ class HYCOMBase(Base):
 		idx_list = cls.dataset_time.return_time_list()
 		k = len(idx_list)-10
 		while k < len(idx_list)-1:
-			print(k)
 			k_filename = cls.file_handler.tmp_file(cls.dataset_description+'_'+cls.location+'_data/'+str(k))
+			print(k_filename)
 			folder = os.path.dirname(k_filename)
 			if not os.path.exists(folder):
 			    os.makedirs(folder)
