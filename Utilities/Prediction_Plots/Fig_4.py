@@ -1,4 +1,4 @@
-from HyperNav.Utilities.Data.Instrument import return_HI21A55, return_HI21A54, return_HI21B55, return_HI21B54
+from HyperNav.Utilities.Data.Instrument import return_HI21A55, return_HI21A54, return_HI21B55, return_HI21B54,return_HI21A53,return_HI22A53,return_HI22B53
 from HyperNav.Utilities.Data.HYCOM import HYCOMHawaii
 from HyperNav.Utilities.Compute.RunParcels import create_prediction,ParticleDataset
 import matplotlib.pyplot as plt
@@ -34,7 +34,11 @@ uv_class.PlotClass.llcrnrlon=-156.8
 X,Y,ax = uv_class.plot(ax=ax)
 
 
-for Hypernav,color in [(return_HI21A55(),'blue'), (return_HI21A54(),'green'), (return_HI21B55(),'orange'), (return_HI21B54(),'red')]:
+for Hypernav,color in [(return_HI21A55(),'blue'),(return_HI21A54(),'green'),
+(return_HI21B55(),'orange'), (return_HI21B54(),'red'),(return_HI21A53(),'yellow'),
+(return_HI22A53(),'purple'),(return_HI22B53(),'pink')]:
+
+
 	loc_list = []
 	predict_list = []
 	for time_idx in range(len(Hypernav.time)-1):

@@ -14,11 +14,12 @@ from GeneralUtilities.Compute.list import TimeList
 import os
 import geopy
 from GeneralUtilities.Compute.list import LatList,LonList,TimeList
-from xarray import Dataset
 import zarr
 file_handler = FilePathHandler(ROOT_DIR,'RunParcels')
 from HyperNav.Utilities.Compute.__init__ import ROOT_DIR as COMPUTE_DIR
 compute_file_handler = FilePathHandler(COMPUTE_DIR,'RunParcels')
+from zarr.storage import FSPathExistNotDir
+
 
 class ParticleList(list):
 	"""
@@ -87,9 +88,7 @@ class ParticleList(list):
 		return (time,new_pos,drift)
 
 class ParticleDataset():
-	"""
-	This is a zarr subclass that can intuitively handle the saved zarr output from parcels.
-	"""
+
 	def __init__(self,filename):
 		self.filename = filename
 
@@ -101,7 +100,11 @@ class ParticleDataset():
 		return [datetime_list[x] - datetime_list[0] for x in range(len(datetime_list))]
 
 	def datetime_index(self):
-		return TimeList([datetime.datetime.fromtimestamp(x) for x in self.zarr_load('time')[0,:].tolist()])
+		print(self.filename)
+		try:
+			return TimeList([datetime.datetime.fromtimestamp(x) for x in self.zarr_load('time')[0,:].tolist()])
+		except FSPathExistNotDir:
+			return TimeList([datetime.datetime.fromtimestamp(x) for x in Dataset(self.filename)['time'][0,:].tolist()])
 
 	def time_idx(self,timedelta):
 		time_list = self.datetime_index()
@@ -112,7 +115,10 @@ class ParticleDataset():
 		return [geopy.Point(x,y) for x,y in zip(lats[0].tolist()[0],lons[0].tolist()[0])]
 
 	def total_coords(self):
-		return (self.zarr_load('lat'),self.zarr_load('lon'))
+		try:
+			return (self.zarr_load('lat'),self.zarr_load('lon'))
+		except FSPathExistNotDir:
+			return (Dataset(self.filename)['lat'][:].data,Dataset(self.filename)['lon'][:].data)
 
 	def get_cloud_snapshot(self,timedelta):
 		time_idx = self.time_idx(timedelta)
@@ -207,7 +213,7 @@ def DeleteParticle(particle, fieldset, time):
 
 def create_prediction(float_pos_dict,uv,dimensions,filename,n_particles=500,output_time_step=datetime.timedelta(minutes=15),out_of_bounds_recovery=True):
 
-	fieldset = FieldSet.from_data(uv, dimensions,transpose=False)
+	fieldset = FieldSet.from_data(uv, dimensions,transpose=False,allow_time_extrapolation=True)
 	fieldset.mindepth = dimensions['depth'][0]
 	K_bar = 0.000000000025
 	fieldset.add_constant('Kh_meridional',K_bar)

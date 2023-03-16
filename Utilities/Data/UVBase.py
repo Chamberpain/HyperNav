@@ -28,7 +28,7 @@ class Base(ABC):
 	scale_factor = 1
 
 	def __init__(self,u=None,v=None,time=None,*args,**kwargs):
-		assert (self.units == 'm/s')|(self.units=='meters/second')|(self.units=='m s-1')
+		assert (self.units == 'm/s')|(self.units=='meters/second')|(self.units=='m s-1')|(self.units=='meter second-1')
 		self.time = TimeList(time)
 		self.u = u
 		self.v = v

@@ -2,25 +2,26 @@ import datetime
 import numpy as np
 from GeneralUtilities.Compute.list import LatList, LonList, DepthList, flat_list
 from HyperNav.Utilities.Data.UVBase import Base,UVTimeList
-from GeneralUtilities.Data.depth.depth_utilities import PACIOOS
+from GeneralUtilities.Compute.Depth.depth_utilities import PACIOOS
 from GeneralUtilities.Plot.Cartopy.eulerian_plot import HypernavCartopy
 import matplotlib.pyplot as plt
 from netCDF4 import Dataset
 from HyperNav.Utilities.Data.__init__ import ROOT_DIR
-from GeneralUtilities.Filepath.instance import FilePathHandler
+from GeneralUtilities.Data.Filepath.instance import FilePathHandler
 import os
 import requests
 from pydap.client import open_url
 from GeneralUtilities.Plot.Cartopy.regional_plot import KonaCartopy
 import shapely.geometry
-
+import pickle
 
 class PACIOOS(Base):
 	dataset_description = 'PACIOOS'
 	base_html = 'https://pae-paha.pacioos.hawaii.edu/erddap/griddap/'
 	DepthClass = PACIOOS
 	file_handler = FilePathHandler(ROOT_DIR,'PACIOOS')
-	hours_list = np.arange(0,25,1).tolist()
+	hours_list = np.arange(0,25,3).tolist()
+	time_step = datetime.timedelta(hours=3)
 	facecolor = 'green'
 
 	def __init__(self,*args,**kwargs):
@@ -30,7 +31,7 @@ class PACIOOS(Base):
 
 	@classmethod
 	def download_and_save(cls):
-		idx_list = time.return_time_list()
+		idx_list = cls.dataset_time.return_time_list()
 		k = 0
 		while k < len(idx_list)-1:
 			print(k)
@@ -39,14 +40,14 @@ class PACIOOS(Base):
 				k +=1
 				continue
 			try:
-				u_holder = dataset['u'][idx_list[k]:idx_list[k+1]
-				,:(len(cls.depth))
-				,cls.lower_lat_idx:cls.higher_lat_idx
-				,cls.lower_lon_idx:cls.higher_lon_idx]
-				v_holder = dataset['v'][idx_list[k]:idx_list[k+1]
-				,:(len(cls.depth))
-				,cls.lower_lat_idx:cls.higher_lat_idx
-				,cls.lower_lon_idx:cls.higher_lon_idx]
+				u_holder = cls.dataset['u'][idx_list[k]:idx_list[k+1]
+				,:(len(cls.depths))
+				,cls.lllat_idx:cls.urlat_idx
+				,cls.lllon_idx:cls.urlon_idx]
+				v_holder = cls.dataset['v'][idx_list[k]:idx_list[k+1]
+				,:(len(cls.depths))
+				,cls.lllat_idx:cls.urlat_idx
+				,cls.lllon_idx:cls.urlon_idx]
 				with open(k_filename, 'wb') as f:
 					pickle.dump({'u':u_holder['u'].data,'v':v_holder['v'].data, 'time':u_holder['time'].data},f)
 				k +=1
@@ -66,8 +67,7 @@ class PACIOOS(Base):
 	@classmethod
 	def get_dimensions(cls,urlon,lllon,urlat,lllat,max_depth,dataset):
 		time_since = datetime.datetime.strptime(dataset['time'].attributes['time_origin'],'%d-%b-%Y %H:%M:%S')
-		UVTimeList.set_ref_date(time_since)
-		time = UVTimeList.time_list_from_minutes(dataset['time'][:].data.tolist())
+		time = UVTimeList.time_list_from_seconds(dataset['time'][:].data.tolist(),time_since)
 		lats = LatList(dataset['latitude'][:].data.tolist())
 		lons = LonList(dataset['longitude'][:].data.tolist())
 		depths = DepthList([-x for x in dataset['depth'][:].data.tolist()])
@@ -80,7 +80,7 @@ class PACIOOS(Base):
 		lons = lons[lllon_idx:urlon_idx]
 		lats = lats[lllat_idx:urlat_idx]
 		units = dataset['u'].attributes['units']
-		return (time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units)
+		return (time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,time_since)
 
 	@classmethod
 	def get_dataset(cls,ID):
@@ -130,7 +130,6 @@ class KonaPACIOOS(PACIOOS):
 	PlotClass = KonaCartopy
 	ID = 'roms_hiig'
 	dataset = PACIOOS.get_dataset(ID)
-	# time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units = PACIOOS.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
-
+	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,ref_date = PACIOOS.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
 
 
