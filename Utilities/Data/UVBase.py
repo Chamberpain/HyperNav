@@ -144,6 +144,12 @@ class Base(ABC):
 		lon_idx = self.lons.find_nearest(lon,idx=True)
 		return (self.u[date_idx,:,lat_idx,lon_idx],self.v[date_idx,:,lat_idx,lon_idx])
 
+	def point_time_series(self,lat,lon,depth):
+		depth_idx = self.depths.find_nearest(depth,idx=True)
+		lat_idx = self.lats.find_nearest(lat,idx=True)
+		lon_idx = self.lons.find_nearest(lon,idx=True)
+		return (self.u[:,depth_idx,lat_idx,lon_idx],self.v[:,depth_idx,lat_idx,lon_idx])
+
 	@classmethod
 	def get_drifter_profs(cls,ReadClass):
 		float_names = ReadClass.get_floats_in_box(cls.ocean_shape)

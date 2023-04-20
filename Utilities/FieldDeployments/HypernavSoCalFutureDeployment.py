@@ -17,8 +17,8 @@ compute_file_handler = FilePathHandler(COMPUTE_DIR,'RunParcels')
 import gc
 
 class SoCalCartopy(RegionalBase):
-    llcrnrlon=-121
-    llcrnrlat=32
+    llcrnrlon=-120
+    llcrnrlat=33
     urcrnrlon=-118
     urcrnrlat=35
     def __init__(self,*args,**kwargs):
@@ -37,16 +37,25 @@ def socal_mean_monthly_plot():
 
 
 def socal_quiver_movie():
-	uv_class = HYCOMFutureSoCal.load(datetime.datetime(2014,1,1),datetime.datetime(2022,1,1))
-	mask = [(x>datetime.datetime(2020,12,1))&(x<datetime.datetime(2020,12,30)) for x in uv_class.time]
+	uv_class = HYCOMFutureSoCal.load(datetime.datetime(2023,3,1),datetime.datetime(2023,4,20))
+	mask = [(x>datetime.datetime(2023,4,1))&(x<datetime.datetime(2023,4,18)) for x in uv_class.time]
 	quiver_movie(uv_class,mask,file_handler)
 
 
+def socal_point_time_series_movie():
+	uv_class = HYCOMFutureSoCal.load(datetime.datetime(2023,3,1),datetime.datetime(2023,4,20))
+	mask = [(x>datetime.datetime(2023,4,1))&(x<datetime.datetime(2023,4,18)) for x in uv_class.time]
+	lat = 33.3382
+	lon = -119.3411
+	depth = -700
+	time_series_movie(uv_class,mask,file_handler,lat,lon,depth)
+
+
 def socal_shear_movie():
-	uv_class = HYCOMFutureSoCal.load(datetime.datetime(2014,1,1),datetime.datetime(2022,1,1))
-	lat = 32.9
-	lon = -117.8
-	mask = [(x>datetime.datetime(2020,12,1))&(x<datetime.datetime(2020,12,30)) for x in uv_class.time]
+	uv_class = HYCOMFutureSoCal.load(datetime.datetime(2023,3,1),datetime.datetime(2023,4,20))
+	mask = [(x>datetime.datetime(2023,4,1))&(x<datetime.datetime(2023,4,18)) for x in uv_class.time]
+	lat = 33.3382
+	lon = -119.3411
 	shear_movie(uv_class,mask,file_handler,lat,lon)
 
 def socal_eke():

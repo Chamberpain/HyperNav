@@ -67,6 +67,41 @@ def quiver_movie(uv_class,mask,file_handler):
 	os.chdir(file_handler.out_file('quiver_movie/'))
 	os.system("ffmpeg -r 5 -i %01d.png -vcodec mpeg4 -y movie.mp4")
 
+def time_series_movie(uv_class,mask,file_handler,lat,lon,depth):
+	time = np.array(uv_class.time)[mask]
+	u_holder,v_holder = uv_class.point_time_series(lat,lon,depth)
+	for k,t in enumerate(time):
+		fig = plt.figure(figsize=(12,12))
+		u,v = uv_class.vertical_shear(t,lat,lon)
+
+		ax1 = fig.add_subplot(1,2,1)
+		ax1.plot(u,depths,label='u')
+		ax1.plot(v,depths,label='v')
+		ax1.set_xlim([-0.55,0.55])
+		ax1.set_xlabel('Current Speed $ms^{-1}$')
+		ax1.set_ylabel('Depth (m)')
+		
+		ax2 = fig.add_subplot(2,2,2, polar=True)
+		ax2.set_rlim([0,0.9])
+		for u_uv_class,v_uv_class in zip(u,v):
+			theta = math.atan2(v_uv_class,u_uv_class)
+			r = np.sqrt(u_uv_class**2+v_uv_class**2)
+			ax2.arrow(theta,(r*0.5),0,r,alpha = 0.5, width = 0.06,
+                 edgecolor = 'black', facecolor = 'green', lw = 2, zorder = 5)
+		ax3 = fig.add_subplot(2,2,4, projection=ccrs.PlateCarree())
+		XX,YY,ax3 = uv_class.plot(ax=ax3)
+		ax3.scatter(lon,lat,s=100,zorder=10)
+		u,v = uv_class.return_u_v(time=t,depth=0)
+		ax3.quiver(XX,YY,u,v,scale=7)
+		plt.suptitle(t.ctime())
+		plt.savefig(file_handler.out_file('shear_movie/'+str(k)))
+		plt.close()
+	os.chdir(file_handler.out_file('shear_movie/'))
+	os.system("ffmpeg -r 5 -i %01d.png -vcodec mpeg4 -y movie.mp4")
+
+
+
+
 def shear_movie(uv_class,mask,file_handler,lat,lon):
 	time = np.array(uv_class.time)[mask]
 	depths = uv_class.depths[:(uv_class.u.shape[1])]
