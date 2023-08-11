@@ -7,12 +7,23 @@ import datetime
 from copy import deepcopy
 from HyperNav.Utilities.Compute.RunParcels import create_prediction,ParticleList,ParticleDataset
 import os
+import pickle
+import shutil
+
+class ControlParticleList(ParticleList):
+
+	def __init__(self,*args,profile,run,**kwargs):
+		super().__init__(*args,**kwargs)
 
 class ControlBase():
 
-	def make_filename(self,run,profile_num,days,drift_depth):
+	def make_zarr_filename(self,run,profile_num,days,drift_depth):
 		filename = '{}_run_{}_profile_{}_days_{}_drift'.format(run,profile_num,days,drift_depth)
-		return self.file_handler.tmp_file(filename)
+		return self.file_handler.tmp_file(filename+'.zarr')
+
+	def make_pickle_filename(self,run,profile_num):
+		filename = '{}_run_{}_profile'.format(run,profile_num)
+		return self.file_handler.tmp_file(filename+'.pickle')
 
 	def make_prediction(self,start_time,start_point,profile_num,run):
 		uv_instance = self.uv_class.load(start_time-datetime.timedelta(days=2),start_time+datetime.timedelta(days=7))
@@ -23,8 +34,8 @@ class ControlBase():
 			date_end = start_time + datetime.timedelta(days=days)
 			total_cycle_time = 3600*24*days
 			for drift_depth in [50,100,200,300,400,500,600,700]:
-				filename = self.make_filename(run,profile_num,days,drift_depth)
-				if not os.path.isfile(filename+'.nc'):
+				filename = self.make_zarr_filename(run,profile_num,days,drift_depth)
+				if not os.path.isfile(filename):
 					argo_cfg = {
 					'lat': start_point.latitude, 'lon': start_point.longitude,
 					'time': start_time.timestamp(), 'end_time': date_end.timestamp(), 'depth': 10, 'min_depth': 10, 
@@ -35,14 +46,26 @@ class ControlBase():
 					prediction = create_prediction(argo_cfg,data,dimensions,filename)
 					gc.collect(generation=2)
 
-	def load_prediction(self,profile,run):
+	def make_pickle(self,profile,run,start_time,start_point):
+		self.make_prediction(start_time,start_point,profile,run)
 		pl = ParticleList()
 		for days in range(1,6):
 			for drift_depth in [50,100,200,300,400,500,600,700]:
-				filename = self.make_filename(run,profile,days,drift_depth)
-				nc = ParticleDataset(filename+'.nc')
+				filename = self.make_zarr_filename(run,profile,days,drift_depth)
+				nc = ParticleDataset(filename)
 				pl.append(nc)
-		return pl
+		start_time,start_point,drift_depth = pl.closest_to_point(deployed_point)
+		pickle_name = self.make_pickle_filename(run,profile)
+		file = open(pickle_name, 'wb')
+		pickle.dump([start_time,start_point,drift_depth],file)
+		for days in range(1,6):
+			for drift_depth in [50,100,200,300,400,500,600,700]:
+				filename = self.make_zarr_filename(run,profile,days,drift_depth)
+				try:
+					shutil.rmtree(filename)
+				except FileNotFoundError:
+					continue
+		return
 
 	# def find_closest(self,pl,deployed_point)
 
@@ -54,14 +77,17 @@ class ControlBase():
 		start_point_list = []
 		drift_depth_list = []
 		start_point = deepcopy(deployed_point)
-		for profile in range(60):
+		profile = 0 
+		while profile<60:
+			pickle_name = self.make_pickle_filename(run,profile)
 			try:
-				pl = self.load_prediction(profile,run)
-				print('loaded profile ',profile)
+				file = open(pickle_name, 'rb')
+				data = pickle.load(file)
+				start_time,start_point,drift_depth = data
+				file.close()
 			except FileNotFoundError:
-				self.make_prediction(start_time,start_point,profile,run)
-				pl = self.load_prediction(profile,run)
-			start_time,start_point,drift_depth = pl.closest_to_point(deployed_point)
+				pl = self.make_pickle(profile,run,start_time,start_point)
+				continue
 			print('new start point is ')
 			print(start_point)
 			print('new start time is ')
@@ -71,6 +97,7 @@ class ControlBase():
 			start_time_list.append(start_time)
 			start_point_list.append(start_point)
 			drift_depth_list.append(drift_depth)
+			profile+=1
 		return (start_time_list,start_point_list,drift_depth_list)
 
 
@@ -84,7 +111,7 @@ class ControlMonterey(ControlBase):
 class ControlSoCal(ControlBase):
 	uv_class = HYCOMSouthernCalifornia
 	file_handler = FilePathHandler(ROOT_DIR,'SoCalControl')
-deployed_point = geopy.Point(32.9,-117.8)
+deployed_point = geopy.Point(33.7,-119.6)
 start_time = datetime.datetime(2020,12,1)
 
 class ControlHawaii(ControlBase):

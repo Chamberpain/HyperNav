@@ -38,7 +38,7 @@ class CopernicusMed(Base):
 		super().__init__(*args,**kwargs)
 
 	@classmethod
-	def get_dataset(cls,ID = 'med-cmcc-cur-an-fc-h'):
+	def get_dataset(cls,ID = 'cmems_mod_med_phy-cur_anfc_4.2km_PT1H-m'):
 		username = 'pchamberlain'
 		password = 'xixhyg-hebju7-jeBmaf'
 		cas_url = 'https://cmems-cas.cls.fr/cas/login'

@@ -80,7 +80,7 @@ class ParticleList(list):
 			closest_list.append(geopy.distance.GreatCircleDistance(geopy.Point(lat_center,lon_center),point))
 			new_pos_list.append(geopy.Point(lat_center,lon_center))
 			days_list.append(ncfid.datetime_index()[-1])
-			drift_list.append(ncfid['z'][:].max())
+			drift_list.append(ncfid.zarr_load('z').max())
 		idx = closest_list.index(min(closest_list))
 		time = days_list[idx]
 		new_pos = new_pos_list[idx]
@@ -90,7 +90,11 @@ class ParticleList(list):
 class ParticleDataset():
 
 	def __init__(self,filename):
-		self.filename = filename
+		assert filename.endswith('.zarr')
+		if os.path.exists(filename):
+			self.filename = filename
+		else:
+			raise FileNotFoundError
 
 	def zarr_load(self,variable):
 		return zarr.load(self.filename).get(variable)
@@ -211,7 +215,7 @@ class ParticleDataset():
 def DeleteParticle(particle, fieldset, time):
 	particle.delete()
 
-def create_prediction(float_pos_dict,uv,dimensions,filename,n_particles=500,output_time_step=datetime.timedelta(minutes=15),out_of_bounds_recovery=True):
+def create_prediction(float_pos_dict,uv,dimensions,filename,n_particles=100,output_time_step=datetime.timedelta(minutes=30),out_of_bounds_recovery=True):
 
 	fieldset = FieldSet.from_data(uv, dimensions,transpose=False,allow_time_extrapolation=True)
 	fieldset.mindepth = dimensions['depth'][0]
