@@ -3,7 +3,7 @@ from GeneralUtilities.Data.Filepath.instance import FilePathHandler
 from HyperNav.Utilities.Data.UVBase import Base,UVTimeList
 from GeneralUtilities.Compute.list import LatList, LonList, DepthList, flat_list
 from urllib.error import HTTPError
-from GeneralUtilities.Plot.Cartopy.regional_plot import KonaCartopy
+from GeneralUtilities.Plot.Cartopy.regional_plot import KonaCartopy, CanaryCartopy, BermudaCartopy, TahitiCartopy
 from socket import timeout
 import matplotlib.pyplot as plt
 import gsw
@@ -17,7 +17,7 @@ import datetime
 import gsw
 import shapely.geometry
 import numpy as np
-
+from HyperNav.Utilities.Data.CopernicusMed import CopUVTimeList
 
 class CopernicusGlobal(Base):
 	facecolor = 'orange'
@@ -27,14 +27,14 @@ class CopernicusGlobal(Base):
 	hours_list = np.arange(0,25,1).tolist()
 	DepthClass = ETopo1Depth
 	file_handler = FilePathHandler(ROOT_DIR,'Copernicus')
-	time_method = UVTimeList.time_list_from_hours
-	ID = 'global-analysis-forecast-phy-001-024'
+	time_method = CopUVTimeList.time_list_from_hours
+	ID = 'cmems_mod_glo_phy-cur_anfc_0.083deg_PT6H-i'
 
 	def __init__(self,*args,**kwargs):
 		super().__init__(*args,**kwargs)
 
 	@classmethod
-	def get_dataset(cls,ID = 'global-analysis-forecast-phy-001-024'):
+	def get_dataset(cls,ID = 'cmems_mod_glo_phy-cur_anfc_0.083deg_PT6H-i'):
 		username = 'pchamberlain'
 		password = 'xixhyg-hebju7-jeBmaf'
 		cas_url = 'https://cmems-cas.cls.fr/cas/login'
@@ -55,14 +55,15 @@ class CopernicusGlobal(Base):
 
 	@classmethod
 	def get_dimensions(cls,urlon,lllon,urlat,lllat,max_depth,dataset):
-		time_since = datetime.datetime.strptime(dataset['time'].attributes['units'],'hours since %Y-%m-%d %H:%M:%S')
-		UVTimeList.set_ref_date(time_since)
-		time = cls.time_method(dataset['time'][:].data.tolist())
+		time_since = datetime.datetime.strptime(dataset['time'].attributes['units'],'hours since %Y-%m-%d')
+		time = cls.time_method(dataset['time'][:].data.tolist(),time_since)
 		lats = LatList(dataset['latitude'][:].data.tolist())
 		lons = LonList(dataset['longitude'][:].data.tolist())
 		depths = DepthList([-x for x in dataset['depth'][:].data.tolist()])
 		depth_idx = depths.find_nearest(max_depth,idx=True)
 		depths=depths[:depth_idx]
+		depths[0] = 0
+		depths[-1] = -700
 		lllon_idx = lons.find_nearest(lllon,idx=True)
 		urlon_idx = lons.find_nearest(urlon,idx=True)
 		lllat_idx = lats.find_nearest(lllat,idx=True)
@@ -70,7 +71,7 @@ class CopernicusGlobal(Base):
 		lons = lons[lllon_idx:urlon_idx]
 		lats = lats[lllat_idx:urlat_idx]
 		units = dataset['uo'].units
-		return (time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units)
+		return (time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,time_since)
 
 	@classmethod
 	def download_and_save(cls):
@@ -99,14 +100,50 @@ class CopernicusGlobal(Base):
 				continue
 
 class HawaiiCopernicus(CopernicusGlobal):
-	scale_factor = 0.0006103701889514923
 	urlat = 22
 	lllat = 16
 	lllon = -159
 	urlon = -154
-	max_depth = -2000
+	max_depth = -800
 	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
 	location = 'Hawaii'
 	PlotClass = KonaCartopy
 	dataset = CopernicusGlobal.get_dataset()
-	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units = CopernicusGlobal.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
+	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,ref_date = CopernicusGlobal.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
+
+class TahitiCopernicus(CopernicusGlobal):
+	urlat = -15
+	lllat = -21
+	lllon = -152.5
+	urlon = -147.0
+	max_depth = -800
+	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
+	location = 'Tahiti'
+	PlotClass = TahitiCartopy
+	dataset = CopernicusGlobal.get_dataset()
+	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,ref_date = CopernicusGlobal.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
+
+
+class BermudaCopernicus(CopernicusGlobal):
+	urlat = 34.5
+	lllat = 29.5
+	lllon = -67
+	urlon = -62
+	max_depth = -800
+	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
+	location = 'Bermuda'
+	PlotClass = BermudaCartopy
+	dataset = CopernicusGlobal.get_dataset()
+	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,ref_date = CopernicusGlobal.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
+
+class CanaryCopernicus(CopernicusGlobal):
+	urlat = 30.0
+	lllat = 25.0
+	lllon = -19.0
+	urlon = -14.0
+	max_depth = -800
+	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
+	location = 'Canary'
+	PlotClass = CanaryCartopy
+	dataset = CopernicusGlobal.get_dataset()
+	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,ref_date = CopernicusGlobal.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)

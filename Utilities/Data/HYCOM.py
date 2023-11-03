@@ -1,5 +1,5 @@
 from HyperNav.Utilities.Data.UVBase import Base, UVTimeList
-from GeneralUtilities.Plot.Cartopy.regional_plot import GOMCartopy,CreteCartopy,KonaCartopy,PuertoRicoCartopy, TahitiCartopy
+from GeneralUtilities.Plot.Cartopy.regional_plot import GOMCartopy,CreteCartopy,KonaCartopy,PuertoRicoCartopy,CCSCartopy,TahitiCartopy
 from GeneralUtilities.Compute.Depth.depth_utilities import PACIOOS,ETopo1Depth
 import numpy as np 
 import datetime
@@ -180,6 +180,7 @@ class HYCOMSouthernCalifornia(HYCOMBase):
 	lllon = -122
 	urlon = -116
 	max_depth = -700
+	PlotClass = CCSCartopy
 	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
 	ID = 'HYCOM_reg7_latest3d'
 	DepthClass = ETopo1Depth
@@ -219,6 +220,7 @@ class HYCOMMonterey(HYCOMBase):
 	lllon = -126
 	urlon = -121.5
 	max_depth = -700
+	PlotClass = CCSCartopy
 	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
 	ID = 'HYCOM_reg7_latest3d'
 	DepthClass = ETopo1Depth

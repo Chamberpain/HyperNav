@@ -75,12 +75,18 @@ class ParticleList(list):
 		drift_list = []
 		new_pos_list = []
 		for ncfid in self: 
-			max_days = ncfid.time_from_start()[-1]
-			lat_center,lon_center,lat_std,lon_std = ncfid.get_cloud_center(max_days)
-			closest_list.append(geopy.distance.GreatCircleDistance(geopy.Point(lat_center,lon_center),point))
-			new_pos_list.append(geopy.Point(lat_center,lon_center))
-			days_list.append(ncfid.datetime_index()[-1])
-			drift_list.append(ncfid.zarr_load('z').max())
+			try:
+				max_days = ncfid.time_from_start()[-1]
+				lat_center,lon_center,lat_std,lon_std = ncfid.get_cloud_center(max_days)
+				print(point)
+				print(lat_center)
+				print(lon_center)
+				closest_list.append(geopy.distance.GreatCircleDistance(geopy.Point(lat_center,lon_center),point))
+				new_pos_list.append(geopy.Point(lat_center,lon_center))
+				days_list.append(ncfid.datetime_index()[-1])
+				drift_list.append(ncfid.zarr_load('z').max())
+			except ValueError:
+				continue
 		idx = closest_list.index(min(closest_list))
 		time = days_list[idx]
 		new_pos = new_pos_list[idx]
@@ -213,6 +219,7 @@ class ParticleDataset():
 
 
 def DeleteParticle(particle, fieldset, time):
+	print('A particle is out of bounds, deleting')
 	particle.delete()
 
 def create_prediction(float_pos_dict,uv,dimensions,filename,n_particles=100,output_time_step=datetime.timedelta(minutes=30),out_of_bounds_recovery=True):

@@ -97,12 +97,15 @@ class CopernicusMed(Base):
 	@classmethod
 	def get_dimensions(cls,urlon,lllon,urlat,lllat,max_depth,dataset):
 		time_since = datetime.datetime.strptime(dataset['time'].attributes['units'],'minutes since %Y-%m-%d %H:%M:%S')
+		# time = CopUVTimeList.time_list_from_minutes([x for x in range(63940350,64511911,60)],time_since)
 		time = CopUVTimeList.time_list_from_minutes(dataset['time'][:].data.tolist(),time_since)
 		lats = LatList(dataset['lat'][:].data.tolist())
 		lons = LonList(dataset['lon'][:].data.tolist())
 		depths = DepthList([-x for x in dataset['depth'][:].data.tolist()])
 		depth_idx = depths.find_nearest(max_depth,idx=True)
 		depths=depths[:depth_idx]
+		depths[0] = 0
+		depths[-1] = -700
 		lllon_idx = lons.find_nearest(lllon,idx=True)
 		urlon_idx = lons.find_nearest(urlon,idx=True)
 		lllat_idx = lats.find_nearest(lllat,idx=True)
@@ -110,7 +113,7 @@ class CopernicusMed(Base):
 		lons = lons[lllon_idx:urlon_idx]
 		lats = lats[lllat_idx:urlat_idx]
 		units = dataset['uo'].units
-		return (time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units)
+		return (time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,time_since)
 
 	@classmethod
 	def download_and_save(cls):
@@ -124,11 +127,11 @@ class CopernicusMed(Base):
 				continue
 			try:
 				u_holder = cls.dataset['uo'].data[0][idx_list[k]:idx_list[k+1]
-				,:(len(cls.depth))
+				,:(len(cls.depths))
 				,cls.lllat_idx:cls.urlat_idx
 				,cls.lllon_idx:cls.urlon_idx]
 				v_holder = cls.dataset['vo'].data[0][idx_list[k]:idx_list[k+1]
-				,:(len(cls.depth))
+				,:(len(cls.depths))
 				,cls.lllat_idx:cls.urlat_idx
 				,cls.lllon_idx:cls.urlon_idx]
 				with open(k_filename, 'wb') as f:
@@ -149,5 +152,5 @@ class CreteCopernicus(CopernicusMed):
 	location = 'Crete'
 	PlotClass = CreteCartopy
 	dataset = CopernicusMed.get_dataset()
-	dataset_time,lats,lons,depth,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units = CopernicusMed.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
+	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,ref_date = CopernicusMed.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
 

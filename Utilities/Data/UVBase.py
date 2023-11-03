@@ -174,9 +174,30 @@ class Base(ABC):
 			u_list.append(uv_dict['u'])
 			v_list.append(uv_dict['v'])
 			time_list.append(cls.time_method(uv_dict['time'],cls.ref_date))
+		time = flat_list(time_list)
 		u = np.concatenate([x for x in u_list])
 		v = np.concatenate([x for x in v_list])
-		time = flat_list(time_list)
+#### interpolation routine because there are wierd small gaps in model record ####
+		for master_idx in np.where((np.diff(time)==cls.time_step)==False)[0].tolist():
+			total_delta_time = time[master_idx+1]-time[master_idx]
+			if total_delta_time>datetime.timedelta(days=3):
+				print('Time Delta at '+str(time[master_idx])+' Exceeds 3 days. Cannot Interpolate')
+				continue
+			total_delta_u = u[master_idx+1]-u[master_idx]
+			total_delta_v = v[master_idx+1]-v[master_idx]
+			temp_idx = 0
+			temp_time_list = []
+			temp_u_list = []
+			temp_v_list = []
+			while cls.time_step*temp_idx<total_delta_time:
+				dt_over_delta_t = cls.time_step*temp_idx/total_delta_time
+				temp_time_list.append(time[master_idx]+temp_idx*cls.time_step)
+				temp_u_list.append(u[master_idx]+total_delta_u*dt_over_delta_t)
+				temp_v_list.append(v[master_idx]+total_delta_v*dt_over_delta_t)
+				temp_idx +=1
+			time = time[:master_idx-1]+temp_time_list+time[master_idx+1:]
+			u = np.concatenate([u[:master_idx-1],temp_u_list,u[master_idx+1:]])
+			v = np.concatenate([v[:master_idx-1],temp_v_list,v[master_idx+1:]])
 		print(u.shape)
 		print(len(time))
 		assert u.shape==v.shape
@@ -194,7 +215,7 @@ class Base(ABC):
 	def plot(self,ax=False):
 		return self.PlotClass(self.lats,self.lons,ax).get_map()
 
-	def return_parcels_uv(self,start_date,end_date):
+	def return_parcels_uv(self,start_date,end_date,particle_position=None):
 		def add_zeros(array):
 			array[:,:,:3,:]=0
 			array[:,:,-3:,:]=0
@@ -209,13 +230,41 @@ class Base(ABC):
 
 		out_time = TimeList(np.array(self.time)[time_mask].tolist())
 		out_u = self.u[time_mask,:,:,:]
-		out_u = add_zeros(out_u)
 		out_v = self.v[time_mask,:,:,:]
-		out_v = add_zeros(out_v)
 		out_w = np.zeros(out_u.shape)
+		if particle_position:
+			lllon_index = self.lons.find_nearest(particle_position.longitude-1.5, idx = True)
+			urlon_index = self.lons.find_nearest(particle_position.longitude+1.5, idx = True)
+			lllat_index = self.lats.find_nearest(particle_position.latitude-1.5, idx = True)
+			urlat_index = self.lats.find_nearest(particle_position.latitude+1.5, idx = True)
+			print(lllon_index)
+			print(urlon_index)
+			print(lllat_index)
+			print(urlat_index)
+			lons = self.lons[lllon_index:urlon_index]
+			lats = self.lats[lllat_index:urlat_index]
+			out_u = out_u[:,:,lllat_index:urlat_index,lllon_index:urlon_index]
+			out_v = out_v[:,:,lllat_index:urlat_index,lllon_index:urlon_index]
+			out_w = out_w[:,:,lllat_index:urlat_index,lllon_index:urlon_index]
+			out_u = add_zeros(out_u)
+			out_v = add_zeros(out_v)
+
+		else:
+			lats = self.lats
+			lons = self.lons
+			out_u = add_zeros(out_u)
+			out_v = add_zeros(out_v)
+
+		time = [x.timestamp() for x in out_time]
+		depths = [-x for x in self.depths]
+		assert out_u.shape==out_v.shape
+		assert out_u.shape[0] == len(time)
+		assert out_u.shape[1] == len(depths)
+		assert out_u.shape[2] == len(lats)
+		assert out_u.shape[3] == len(lons)
 		data = {'U':out_u,'V':out_v,'W':out_w}
-		dimensions = {'time':[x.timestamp() for x in out_time],
-		'depth':[-x for x in self.depths],
-		'lat':self.lats,
-		'lon':self.lons,}		
+		dimensions = {'time':time,
+		'depth':depths,
+		'lat':lats,
+		'lon':lons,}		
 		return (data,dimensions)

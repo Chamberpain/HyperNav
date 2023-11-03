@@ -3,7 +3,7 @@ import h5py
 from GeneralUtilities.Data.Filepath.instance import get_data_folder
 from GeneralUtilities.Compute.list import LatList,LonList,TimeList
 import os
-DATA_DIR = os.path.join(get_data_folder(),'Processed/HDF5/')
+DATA_DIR = os.path.join(get_data_folder(),'Processed/HDF5/clear_sky')
 import numpy as np
 
 class ClearSkyBase():
