@@ -76,9 +76,8 @@ class ControlBase():
 		ax.scatter(lon_list[0],lat_list[0],c='pink',marker='*',s=350,zorder=21)
 		ax.scatter(lon_list[-1],lat_list[-1],c='black',marker='s',s=400,zorder=21)
 		ax.scatter(lon_list[-1],lat_list[-1],c='pink',marker='s',s=300,zorder=21)
-
 		plt.colorbar(mappable=pbc,label='Drift Depth')
-		plt.show()
+		plt.title('Start time = '+str(self.time[0]))
 
 	@classmethod
 	def make_zarr_filename(cls,run,profile_num,days,drift_depth):
