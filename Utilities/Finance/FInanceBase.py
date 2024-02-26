@@ -14,7 +14,7 @@ class FinanceBase():
 
 	def matchup_num(self,month,matchup_class):
 		num_list = []
-		for dummy in range(200):
+		for dummy in range(30):
 			match_up_holder = []
 			date = datetime.date(2022,month,1)
 			for day in range(30):
@@ -71,7 +71,7 @@ class MontereyFinance(FinanceBase):
 	meals = 69
 	flight = 238
 	logistics = 4500
-	boat = 1500*3
+	boat = 1500*3/0.49
 	travel = (flight*4+lodging*8+meals*8)/0.49
 
 class SoCalFinance(FinanceBase):
@@ -91,8 +91,8 @@ class HawaiiFinance(FinanceBase):
 	lodging = 229
 	meals = 138
 	flight = 598
-	logistics = 1000*2
-	boat = 2088*4
+	logistics = 1200*2/0.49
+	boat = 2088*4/0.49
 	travel = (flight*4+lodging*8+meals*8)/0.49
 
 class MobyFinance(FinanceBase):
@@ -112,8 +112,8 @@ class CreteFinance(FinanceBase):
 	lodging = 0
 	meals = 0
 	flight = 0
-	logistics = 2585*2+200 # for carnet
-	boat = 2500*2
+	logistics = (2585*2+200)/0.49 # for carnet
+	boat = 2500*2/0.49
 	travel = (flight*4+lodging*8+meals*8)/0.49
 
 class PRFinance(FinanceBase):
@@ -121,11 +121,11 @@ class PRFinance(FinanceBase):
 	deployed_point = geopy.Point(17.5,-66.5)
 	svcclass = SVCPuertoRico()
 	skyclass = ClearSkyPuertoRico()
-	flight = 516
-	lodging = 109
-	meals = 75
-	logistics = 900*2
-	boat = 1300*3
+	flight = 0
+	lodging = 0
+	meals = 0
+	logistics = (2123*2)/0.49
+	boat = (1300*3)/0.49
 	travel = (flight*4+lodging*8+meals*8)/0.49
 
 
@@ -138,8 +138,8 @@ class TahitiFinance(FinanceBase):
 	flight = 1200
 	meals = 124
 	travel = (flight*4+lodging*8+meals*8)/0.49
-	logistics = 2585*2
-	boat = 2500*2
+	logistics = 2585*2/0.49
+	boat = 2500*2/0.49
 
 class BermudaFinance(FinanceBase):
 	label = 'Bermuda'
@@ -150,8 +150,8 @@ class BermudaFinance(FinanceBase):
 	flight = 1200
 	meals = 158
 	travel = (flight*4+lodging*8+meals*8)/0.49
-	logistics = 2585*2
-	boat = 2500*3
+	logistics = 2585*2/0.49
+	boat = 2500*3/0.49
 
 class CanaryFinance(FinanceBase):
 	label = 'Carnary'
@@ -171,35 +171,36 @@ def cost_plot():
                   '#999999', '#e41a1c', '#dede00']
 	fig, (ax1, ax2, ax3) = plt.subplots(3)
 	month_dummy = range(12)
-	for k,(costclass,color) in enumerate(zip([HawaiiFinance,PRFinance,CreteFinance,TahitiFinance,BermudaFinance],CB_color_cycle[:6])):
-		num,std = costclass().price_per_month('SVC')
-		print(costclass.label)
-		print(num)
+
+	for k,(costclass,color) in enumerate(zip([HawaiiFinance,PRFinance,CreteFinance,TahitiFinance,BermudaFinance,MontereyFinance,SoCalFinance],CB_color_cycle[:8])):
+		num,std = costclass().price_per_month('ClearSky')
 		ax1.plot(month_dummy,num,label=costclass.label,color=color)
 	ax1.set_xticks([0,2,4,6,8,10],['','','','','',''])
 	ax1.set_ylabel('Cost/Matchup ($)')
 	ax1.set_yscale('log')
-	ax1.set_ylim([10000,350000])
+	ax1.set_ylim([3000,80000])
 	ax1.set_xlim(0,11)
 	ax1.annotate('a', xy = (0.1,0.85),xycoords='axes fraction',zorder=11,size=20,bbox=dict(boxstyle="round", fc="0.8"),)
+	ax1.legend(loc='upper center', ncol=4,bbox_to_anchor=(0.5, 1.45))
 	for k,(costclass,color) in enumerate(zip([HawaiiFinance,PRFinance,CreteFinance,TahitiFinance,BermudaFinance],CB_color_cycle[:6])):
 		num,std = costclass().price_per_month('Zibordi')
 		ax2.plot(month_dummy,num,label=costclass.label,color=color)	
 	ax2.set_xticks([0,2,4,6,8,10],['','','','','',''])
 	ax2.set_ylabel('Cost/Matchup ($)')
 	ax2.set_yscale('log')
-	ax2.set_ylim([10000,350000])
+	ax2.set_ylim([10000,450000])
 	ax2.set_xlim(0,11)
 	ax2.annotate('b', xy = (0.1,0.85),xycoords='axes fraction',zorder=11,size=20,bbox=dict(boxstyle="round", fc="0.8"),)
-	for k,(costclass,color) in enumerate(zip([HawaiiFinance,PRFinance,CreteFinance,TahitiFinance,BermudaFinance,MontereyFinance,SoCalFinance],CB_color_cycle[:8])):
-		num,std = costclass().price_per_month('ClearSky')
+	for k,(costclass,color) in enumerate(zip([HawaiiFinance,PRFinance,CreteFinance,TahitiFinance,BermudaFinance],CB_color_cycle[:6])):
+		num,std = costclass().price_per_month('SVC')
+		print(costclass.label)
+		print(num)
 		ax3.plot(month_dummy,num,label=costclass.label,color=color)
 	ax3.set_ylabel('Cost/Matchup ($)')
 	ax3.set_yscale('log')
-	ax3.set_ylim([3000,60000])
+	ax3.set_ylim([10000,450000])
 	ax3.set_xlim(0,11)
 	ax3.annotate('c', xy = (0.1,0.85),xycoords='axes fraction',zorder=11,size=20,bbox=dict(boxstyle="round", fc="0.8"),)
-	ax3.legend(loc='upper center', ncol=4,bbox_to_anchor=(0.5, 4))
 	ax3.set_xticks([0,2,4,6,8,10],['Jan','Mar','May','Jul','Sep','Nov'])
 	ax3.set_xlabel('Month')
 	plt.show()
@@ -232,35 +233,64 @@ def num_plot():
                   '#999999', '#e41a1c', '#dede00']
 	fig, (ax1, ax2, ax3) = plt.subplots(3)
 	month_dummy = range(12)
-	for k,(costclass,color) in enumerate(zip([HawaiiFinance,PRFinance,CreteFinance,TahitiFinance,BermudaFinance,MontereyFinance,SoCalFinance],CB_color_cycle[:6])):
-		num,std = costclass().matchup_per_month('SVC')
-		print(costclass.label)
-		print(num)
+	for k,(costclass,color) in enumerate(zip([HawaiiFinance,PRFinance,CreteFinance,TahitiFinance,BermudaFinance,MontereyFinance,SoCalFinance],CB_color_cycle[:8])):
+		num,std = costclass().matchup_per_month('ClearSky')
 		ax1.errorbar(np.array(month_dummy)-0.1+k*0.03,num,ls='none',yerr=std,color=color,alpha=0.7)
 		ax1.plot(month_dummy,num,label=costclass.label,color=color)
 	ax1.set_xticks([0,2,4,6,8,10],['','','','','',''])
 	ax1.set_ylabel('Matchup Number')
 	ax1.set_xlim(0,11)
 	ax1.annotate('a', xy = (-0.1,0.85),xycoords='axes fraction',zorder=11,size=20,bbox=dict(boxstyle="round", fc="0.8"),)
-	for k,(costclass,color) in enumerate(zip([HawaiiFinance,PRFinance,CreteFinance,TahitiFinance,BermudaFinance,MontereyFinance,SoCalFinance],CB_color_cycle[:6])):
+	ax1.legend(loc='upper center', ncol=4,bbox_to_anchor=(0.5, 1.45))
+	zibordi_dict = {}
+	for k,(costclass,color) in enumerate(zip([HawaiiFinance,PRFinance,CreteFinance,TahitiFinance,BermudaFinance,MontereyFinance,SoCalFinance],CB_color_cycle[:7])):
 		num,std = costclass().matchup_per_month('Zibordi')
-		ax2.errorbar(np.array(month_dummy)-0.1+k*0.03,num,ls='none',yerr=std,color=color,alpha=0.7)
+		zibordi_dict[costclass.label]=(num,std)
 		ax2.plot(month_dummy,num,label=costclass.label,color=color)	
+		if costclass.label in ['Monterey','Port Hueneme']:
+			print(costclass.label)
+			continue
+		ax2.errorbar(np.array(month_dummy)-0.1+k*0.03,num,ls='none',yerr=std,color=color,alpha=0.7)
+
 	ax2.set_xticks([0,2,4,6,8,10],['','','','','',''])
 	ax2.set_ylabel('Matchup Number')
 	ax2.set_xlim(0,11)
 	ax2.annotate('b', xy = (-0.1,0.85),xycoords='axes fraction',zorder=11,size=20,bbox=dict(boxstyle="round", fc="0.8"),)
-	for k,(costclass,color) in enumerate(zip([HawaiiFinance,PRFinance,CreteFinance,TahitiFinance,BermudaFinance,MontereyFinance,SoCalFinance],CB_color_cycle[:8])):
-		num,std = costclass().matchup_per_month('ClearSky')
-		ax3.errorbar(np.array(month_dummy)-0.1+k*0.03,num,ls='none',yerr=std,color=color,alpha=0.7)
+	frouin_dict = {}
+	for k,(costclass,color) in enumerate(zip([HawaiiFinance,PRFinance,CreteFinance,TahitiFinance,BermudaFinance,MontereyFinance,SoCalFinance],CB_color_cycle[:7])):
+		num,std = costclass().matchup_per_month('SVC')
+		frouin_dict[costclass.label]=(num,std)
+		print(costclass.label)
+		print(num)
 		ax3.plot(month_dummy,num,label=costclass.label,color=color)
+		if costclass.label in ['Monterey','Port Hueneme']:
+			print(costclass.label)
+			continue
+		ax3.errorbar(np.array(month_dummy)-0.1+k*0.03,num,ls='none',yerr=std,color=color,alpha=0.7)
 	ax3.set_xticks([0,2,4,6,8,10],['','','','','',''])
 	ax3.set_ylabel('Matchup Number')
 	ax3.set_xlim(0,11)
 	ax3.annotate('c', xy = (-0.1,0.85),xycoords='axes fraction',zorder=11,size=20,bbox=dict(boxstyle="round", fc="0.8"),)
-	ax3.legend(loc='upper center', ncol=4,bbox_to_anchor=(0.5, 4))
 	ax3.set_xticks([0,2,4,6,8,10],['Jan','Mar','May','Jul','Sep','Nov'])
 	ax3.set_xlabel('Month')
+
+	fig1, (ax4) = plt.subplots(1)
+	total_sum = 0
+	for k,(costclass,color) in enumerate(zip([HawaiiFinance,PRFinance,CreteFinance,TahitiFinance,BermudaFinance,MontereyFinance,SoCalFinance],CB_color_cycle[:7])):
+		num = np.array(frouin_dict[costclass.label][0])-np.array(zibordi_dict[costclass.label][0])
+		std = np.array(frouin_dict[costclass.label][1])+np.array(zibordi_dict[costclass.label][1])
+		# ax4.errorbar(np.array(month_dummy)-0.1+k*0.03,num,ls='none',yerr=std,color=color,alpha=0.7)
+		ax4.plot(month_dummy,num,label=costclass.label,color=color)
+		if costclass.label in ['Kona','Crete','Puerto Rico']:
+			print(costclass.label)
+			print(np.sum(num))
+			total_sum += np.sum(num)
+	ax4.legend(loc='upper center', ncol=3,bbox_to_anchor=(0.5, 1.15))
+	ax4.set_xticklabels(['','Jan','Mar','May','Jul','Sep','Nov'])	
+	ax4.set_xlabel('Month')
+	ax4.set_ylabel('Sec. 2 Criteria - Zibordi Criteria Matchup Number')	
+
+
 	plt.show()
 
 
@@ -310,7 +340,7 @@ def zibordi_frouin_num_plot():
 	ax3.legend(loc='upper center', ncol=3,bbox_to_anchor=(0.5, 1.15))
 	ax3.set_xticklabels(['','Jan','Mar','May','Jul','Sep','Nov'])	
 	ax3.set_xlabel('Month')
-	ax3.set_ylabel('Frouin - Zibordi Matchup Number')	
+	ax3.set_ylabel('Difference in Section 2 and Zibordi Criteria Matchup Number')	
 	plt.show()
 
 def bar_plot():
