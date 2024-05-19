@@ -302,7 +302,7 @@ def zibordi_frouin_num_plot():
 	fig, (ax1, ax2,ax4) = plt.subplots(3)
 	fig1, ax3 = plt.subplots(1)
 
-	for costclass,color in zip([HawaiiFinance,MobyFinance,PRFinance,CreteFinance,TahitiFinance,BermudaFinance],CB_color_cycle):
+	for costclass,color in zip([HawaiiFinance,PRFinance,CreteFinance,TahitiFinance,BermudaFinance],CB_color_cycle):
 		Frouin_Num,Frouin_std = costclass().matchup_per_month('SVC')
 		ax1.plot(np.array(Frouin_Num),label=costclass.label,color=color)
 		# ax1.fill_between(range(len(Frouin_std)),np.array(Frouin_Num)-np.array(Frouin_std),np.array(Frouin_Num)+np.array(Frouin_std),color=color,alpha=0.3)
@@ -344,52 +344,60 @@ def zibordi_frouin_num_plot():
 	plt.show()
 
 def bar_plot():
-	fig, ax = plt.subplots()
-	barWidth = 0.25
-	label = []
-	# hardware = []
-	# transmission = []
-	# site_fees = []
-	# recalibration = []
-	travel = []
-	logistics = []
-	boat = []
+	CB_color_cycle = ['#377eb8', '#ff7f00', '#4daf4a',
+                  '#999999']
+	fig, axs = plt.subplots(4)
+	month_dummy = range(365)
+	Hawaii_Data = [
+	[datetime.date(2017,11,18),datetime.date(2017,12,4),14,14.],
+	[datetime.date(2021,6,9),datetime.date(2021,6,16),8,8.],
+	[datetime.date(2021,6,9),datetime.date(2021,6,16),7,8.],
+	[datetime.date(2022,4,20),datetime.date(2022,5,9),16,16.],
+	[datetime.date(2024,3,9),datetime.date(2024,3,29),10,15.],
+	[datetime.date(2024,4,23),datetime.date(2024,5,8),7,12.],
+	]
 
-	for costclass in [MontereyFinance,SoCalFinance,HawaiiFinance,CreteFinance,PRFinance,TahitiFinance]:
-		label.append(costclass.label)
-		# hardware.append(costclass.hardware)
-		# transmission.append(costclass.transmission)
-		# site_fees.append(costclass.site_fees)
-		# recalibration.append(costclass.recalibration)
-		travel.append(costclass.travel)
-		logistics.append(costclass.logistics)
-		boat.append(costclass.boat)
+	Crete_Data = [
+	[datetime.date(2022,5,24),datetime.date(2022,7,27),11,13.],
+	[datetime.date(2022,5,24),datetime.date(2022,7,31),45,50.],
+	[datetime.date(2023,3,25),datetime.date(2023,5,2),32,35.],
+	[datetime.date(2024,2,21),datetime.date(2024,4,10),27,40.],
+	]
 
-	br_hardware = np.arange(len(hardware))
-	br_transmission = [x + barWidth for x in br_hardware]
-	br_site = [x + barWidth for x in br_transmission]
-	br_recalibration = [x + barWidth for x in br_site]
-	br_travel = [x + barWidth for x in br_recalibration]
-	br_logistics = [x + barWidth for x in br_travel]
-	br_boat = [x + barWidth for x in br_logistics]
+	SD_Data = [
+	[datetime.date(2023,4,10),datetime.date(2023,6,4),38,42.],
+	[datetime.date(2023,11,30),datetime.date(2023,12,10),9,9.],
+	]
 
-	# plt.bar(br_hardware, hardware, color ='blue', width = barWidth,
-	#         edgecolor ='grey', label ='Hardware')
-	# plt.bar(br_transmission, transmission, color ='orange', width = barWidth,
-	#         edgecolor ='grey', label ='Transmission')
-	# plt.bar(br_site, site_fees, color ='green', width = barWidth,
-	#         edgecolor ='grey', label ='Site')
-	# plt.bar(br_recalibration, recalibration, color ='purple', width = barWidth,
-	#         edgecolor ='grey', label ='Recalibration')
-	plt.bar(br_travel, travel, color ='brown', width = barWidth,
-	        edgecolor ='grey', label ='Travel')
-	plt.bar(br_logistics, logistics, color ='pink', width = barWidth,
-	        edgecolor ='grey', label ='Logistics')
-	plt.bar(br_boat, boat, color ='olive', width = barWidth,
-	        edgecolor ='grey', label ='Boat')
+	PR_Data = [
+	[datetime.date(2024,2,13),datetime.date(2024,3,30),24,36.],
+	[datetime.date(2024,4,5),datetime.date(2024,5,7),12,18.],
+	]
+	month_dummy = range(0,14)
+	annotate_list = ['a','b','c','d']
+	for k,(costclass,color,data) in enumerate(zip([HawaiiFinance,PRFinance,CreteFinance,SoCalFinance],CB_color_cycle,[Hawaii_Data,PR_Data,Crete_Data,SD_Data])):
+		ax = axs[k]
+		for dummy in data:
+			x = [dummy[0].month+dummy[0].day/30.,dummy[1].month+dummy[1].day/30.]
+			ax.plot(x,[dummy[2]/(dummy[1]-dummy[0]).days*100]*len(x),'k--')
+		num,std = costclass().matchup_per_month('ClearSky')
+		num = [num[11]]+num+[num[0]]
+		std = [std[11]]+std+[std[0]]
+		num = np.array(num)
+		std = np.array(std)
+		ax.plot(month_dummy,num/30.*100,color=color)
+		ax.fill_between(month_dummy,(num-std)/30.*100,(num+std)/30.*100,alpha=0.2,color=color)
+		ax.set_xlim(1,13)
+		ax.set_xticklabels([])
+		ax.set_xlabel('')
+		ax.set_xticks([])
+		ax.set_ylim(0,100)
+		ax.set_ylabel('Probability')
+		ax.annotate(annotate_list[k], xy = (0.1,0.9),xycoords='axes fraction',zorder=11,size=20,bbox=dict(boxstyle="round", fc="0.8"),)
 
-	ax.set_xticklabels(['']+label)
-	ax.set_xlabel('Site')
-	ax.set_ylabel('Cost ($)')
-	plt.legend()
-	plt.show()
+		if k == 3:
+			ax.set_xticks([2,6,10])
+			ax.set_xticklabels(['Feb','Jun','Oct'])
+			ax.set_xlabel('Month')
+
+

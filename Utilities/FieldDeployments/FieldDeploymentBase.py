@@ -115,7 +115,8 @@ def shear_movie(uv_class,mask,file_handler,lat,lon):
 		ax1.set_xlim([-0.55,0.55])
 		ax1.set_xlabel('Current Speed $ms^{-1}$')
 		ax1.set_ylabel('Depth (m)')
-		
+		ax1.legend()
+
 		ax2 = fig.add_subplot(2,2,2, polar=True)
 		ax2.set_rlim([0,0.9])
 		for u_uv_class,v_uv_class in zip(u,v):

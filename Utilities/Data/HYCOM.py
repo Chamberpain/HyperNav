@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 
 
 class HYCOMBase(Base):
-	dataset_description = 'HYCOM'
+	dataset_description = 'GOFS'
 	hours_list = np.arange(0,25,3).tolist()
 	time_step = datetime.timedelta(hours=3)
 	base_html = 'https://www.ncei.noaa.gov/erddap/griddap/'

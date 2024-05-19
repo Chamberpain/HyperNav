@@ -20,8 +20,8 @@ import numpy as np
 from HyperNav.Utilities.Data.CopernicusMed import CopUVTimeList
 
 class CopernicusGlobal(Base):
-	facecolor = 'orange'
-	dataset_description = 'Copernicus'
+	facecolor = 'green'
+	dataset_description = 'GOPAF'
 	base_html = 'https://nrt.cmems-du.eu/thredds/dodsC/'
 	time_step = datetime.timedelta(hours=1)
 	hours_list = np.arange(0,25,1).tolist()

@@ -25,7 +25,7 @@ class CopUVTimeList(UVTimeList):
 
 class CopernicusMed(Base):
 	facecolor = 'orange'
-	dataset_description = 'Copernicus'
+	dataset_description = 'MSPAF'
 	base_html = 'https://nrt.cmems-du.eu/thredds/dodsC/'
 	time_step = datetime.timedelta(hours=1)
 	hours_list = np.arange(0,25,1).tolist()

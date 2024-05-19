@@ -1,4 +1,4 @@
-from HyperNav.Utilities.Data.HYCOM import HYCOMTahiti
+from HyperNav.Utilities.Data.CopernicusGlobal import HYCOMTahiti
 from HyperNav.Utilities.Data.__init__ import ROOT_DIR
 import matplotlib.pyplot as plt
 import datetime

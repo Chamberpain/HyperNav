@@ -2,16 +2,29 @@ from HyperNav.Utilities.Data.HYCOM import HYCOMPuertoRico
 from HyperNav.Utilities.Data.__init__ import ROOT_DIR
 import matplotlib.pyplot as plt
 import datetime
-from GeneralUtilities.Filepath.instance import FilePathHandler
+from GeneralUtilities.Data.Filepath.instance import FilePathHandler
 import cartopy.crs as ccrs
 import numpy as np
 import os
 file_handler = FilePathHandler(ROOT_DIR,'HypernavPuertoRicoFieldDeployment')
+from GeneralUtilities.Plot.Cartopy.regional_plot import RegionalBase
+import math
+
+
+class HRPuertoRicoCartopy(RegionalBase):
+    llcrnrlon=-68.5 
+    llcrnrlat=16.5
+    urcrnrlon=-65
+    urcrnrlat=18.5
+    def __init__(self,*args,**kwargs):
+        print('I am plotting Puerto Rico')
+        super().__init__(*args,**kwargs)
+
+HYCOMPuertoRico.PlotClass = HRPuertoRicoCartopy
 
 
 def PRParticlesCompute():
 	uv_class = HYCOMPuertoRico.load()
-	float_list = 
 	for float_pos_dict,filename in [({'lat':18.6,'lon':-67.75,'time':datetime.datetime(2015,12,1)},'site_1'),
 		({'lat':18.8,'lon':-66.75,'time':datetime.datetime(2015,12,1)},'site_2')]:
 		dist_loc = []
@@ -37,40 +50,40 @@ def PRParticlesCompute():
 
 
 def mean_monthly_plot():
-	holder = HYCOMPuertoRico.load()
+	holder = HYCOMPuertoRico.load(datetime.datetime(2024,4,1),datetime.datetime(2024,4,15))
 	fig = plt.figure(figsize=(12,7))
 	ax1 = fig.add_subplot(2,2,1, projection=ccrs.PlateCarree())
 	ax2 = fig.add_subplot(2,2,2, projection=ccrs.PlateCarree())
 	ax3 = fig.add_subplot(2,2,3, projection=ccrs.PlateCarree())
 	ax4 = fig.add_subplot(2,2,4, projection=ccrs.PlateCarree())
 	XX,YY,ax1 = holder.plot(ax=ax1)
-	u,v = holder.return_monthly_mean(12,-600)
+	u,v = holder.return_monthly_mean(4,-600)
 	q = ax1.quiver(XX,YY,u,v,scale=5)
 	ax1.title.set_text('Depth = 600m')
 	XX,YY,ax2 = holder.plot(ax=ax2)
-	u,v = holder.return_monthly_mean(12,-200)
+	u,v = holder.return_monthly_mean(4,-200)
 	q = ax2.quiver(XX,YY,u,v,scale=5)
 	ax2.title.set_text('Depth = 200m')
 	XX,YY,ax3 = holder.plot(ax=ax3)
-	u,v = holder.return_monthly_mean(12,-50)
+	u,v = holder.return_monthly_mean(4,-50)
 	q = ax3.quiver(XX,YY,u,v,scale=5)
 	ax3.title.set_text('Depth = 50m')
 	XX,YY,ax4 = holder.plot(ax=ax4)
-	u,v = holder.return_monthly_mean(12,0)
+	u,v = holder.return_monthly_mean(4,0)
 	q = ax4.quiver(XX,YY,u,v,scale=5)
 	ax4.title.set_text('Depth = Surface')
 	plt.savefig(file_handler.out_file('monthly_mean_quiver'))
 	plt.close()
 
 def quiver_movie():
-	holder = HYCOMPuertoRico.load()
+	holder = HYCOMPuertoRico.load(datetime.datetime(2024,4,1),datetime.datetime(2024,4,15))
 	shallow = 0
-	deep = -600
+	deep = -500
 	u = holder.u[:,:,:,:]
 	v = holder.v[:,:,:,:]
 	time = np.array(holder.time)
-	deep_idx = holder.depth.find_nearest(deep,idx=True)
-	shallow_idx = holder.depth.find_nearest(shallow,idx=True)
+	deep_idx = holder.depths.find_nearest(deep,idx=True)
+	shallow_idx = holder.depths.find_nearest(shallow,idx=True)
 	for k in range(u.shape[0]):
 		u_holder = u[k,:,:,:]
 		v_holder = v[k,:,:,:]
@@ -92,12 +105,12 @@ def quiver_movie():
 	os.system("ffmpeg -r 5 -i %01d.png -vcodec mpeg4 -y movie.mp4")
 
 def shear_movie():
-	holder = HYCOMHawaii.load()
-	lat = 19.5
-	lon = -156.3
-	mask = [(x>datetime.datetime(2021,6,6))&(x<datetime.datetime(2021,6,24)) for x in holder.time]
+	holder = HYCOMPuertoRico.load(datetime.datetime(2024,4,1),datetime.datetime(2024,4,15))
+	lat = 17.75
+	lon = -66.6
+	mask = [(x>datetime.datetime(2024,4,1))&(x<datetime.datetime(2024,4,15)) for x in holder.time]
 	time = np.array(holder.time)[mask]
-	depths = holder.depth[:(self.u.shape[1])]
+	depths = holder.depths[:(holder.u.shape[1])]
 	for k,t in enumerate(time):
 		fig = plt.figure(figsize=(12,12))
 		u,v = holder.vertical_shear(t,lat,lon)

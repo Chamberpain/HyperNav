@@ -28,7 +28,7 @@ class Base(ABC):
 	scale_factor = 1
 
 	def __init__(self,u=None,v=None,time=None,*args,**kwargs):
-		assert (self.units == 'm/s')|(self.units=='meters/second')|(self.units=='m s-1')|(self.units=='meter second-1')
+		assert self.units in ['m/s','meters/second','m s-1','meter second-1','meters second-1']
 		self.time = TimeList(time)
 		self.u = u
 		self.v = v
@@ -157,7 +157,7 @@ class Base(ABC):
 		return float_list
 
 	@classmethod
-	def load(cls,date_start,date_end):
+	def load(cls,date_start,date_end,interpolate=True):
 		time_idx_list = cls.dataset_time.get_file_indexes(date_start,date_end)
 		u_list = []
 		v_list = []
@@ -178,26 +178,27 @@ class Base(ABC):
 		u = np.concatenate([x for x in u_list])
 		v = np.concatenate([x for x in v_list])
 #### interpolation routine because there are wierd small gaps in model record ####
-		for master_idx in np.where((np.diff(time)==cls.time_step)==False)[0].tolist():
-			total_delta_time = time[master_idx+1]-time[master_idx]
-			if total_delta_time>datetime.timedelta(days=3):
-				print('Time Delta at '+str(time[master_idx])+' Exceeds 3 days. Cannot Interpolate')
-				continue
-			total_delta_u = u[master_idx+1]-u[master_idx]
-			total_delta_v = v[master_idx+1]-v[master_idx]
-			temp_idx = 0
-			temp_time_list = []
-			temp_u_list = []
-			temp_v_list = []
-			while cls.time_step*temp_idx<total_delta_time:
-				dt_over_delta_t = cls.time_step*temp_idx/total_delta_time
-				temp_time_list.append(time[master_idx]+temp_idx*cls.time_step)
-				temp_u_list.append(u[master_idx]+total_delta_u*dt_over_delta_t)
-				temp_v_list.append(v[master_idx]+total_delta_v*dt_over_delta_t)
-				temp_idx +=1
-			time = time[:master_idx-1]+temp_time_list+time[master_idx+1:]
-			u = np.concatenate([u[:master_idx-1],temp_u_list,u[master_idx+1:]])
-			v = np.concatenate([v[:master_idx-1],temp_v_list,v[master_idx+1:]])
+		if interpolate:
+			for master_idx in np.where((np.diff(time)==cls.time_step)==False)[0].tolist():
+				total_delta_time = time[master_idx+1]-time[master_idx]
+				if total_delta_time>datetime.timedelta(days=3):
+					print('Time Delta at '+str(time[master_idx])+' Exceeds 3 days. Cannot Interpolate')
+					continue
+				total_delta_u = u[master_idx+1]-u[master_idx]
+				total_delta_v = v[master_idx+1]-v[master_idx]
+				temp_idx = 0
+				temp_time_list = []
+				temp_u_list = []
+				temp_v_list = []
+				while cls.time_step*temp_idx<total_delta_time:
+					dt_over_delta_t = cls.time_step*temp_idx/total_delta_time
+					temp_time_list.append(time[master_idx]+temp_idx*cls.time_step)
+					temp_u_list.append(u[master_idx]+total_delta_u*dt_over_delta_t)
+					temp_v_list.append(v[master_idx]+total_delta_v*dt_over_delta_t)
+					temp_idx +=1
+				time = time[:master_idx-1]+temp_time_list+time[master_idx+1:]
+				u = np.concatenate([u[:master_idx-1],temp_u_list,u[master_idx+1:]])
+				v = np.concatenate([v[:master_idx-1],temp_v_list,v[master_idx+1:]])
 		print(u.shape)
 		print(len(time))
 		assert u.shape==v.shape

@@ -45,10 +45,15 @@ class AggregateTahiti(AggregateControlBase):
 def plot_distance_stats():
 	fig = plt.figure(figsize=(12,12))
 	ax = fig.add_subplot(1,1,1)
-	name_dict = {'PuertoRico':'Puerto Rico','Hawaii':'Hawaii',
+	name_dict = {'PuertoRico':'Puerto Rico','Hawaii':'Kona',
 	'SoCal':'Port Hueneme','Monterey':'Monterey','Bermuda':'Bermuda','Crete':'Crete','Tahiti':'Tahiti'}
+
+
+	CB_color_cycle = ['#377eb8', '#ff7f00', '#4daf4a',
+                  '#f781bf', '#a65628', '#984ea3',
+                  '#999999', '#e41a1c', '#dede00']
 	
-	for aggclass in [AggregatePR,AggregateHawaii,AggregateSoCal,AggregateMonterey,AggregateBermuda,AggregateCrete,AggregateTahiti]:
+	for aggclass,color in zip([AggregateHawaii,AggregatePR,AggregateCrete,AggregateTahiti,AggregateBermuda,AggregateMonterey,AggregateSoCal],CB_color_cycle[:8]):
 		class_holder = aggclass()
 		mean_holder, std_holder = class_holder.return_dist_stats()
 		mean_holder = np.array(mean_holder)
@@ -57,8 +62,8 @@ def plot_distance_stats():
 		name = name_dict[aggclass.control.uv_class.location]
 		print(name)
 		print(max(mean_holder)/max(std_holder))
-		ax.plot(x,mean_holder,label=name)
-		ax.fill_between(x,mean_holder-std_holder,mean_holder+std_holder,alpha=0.2)
+		ax.plot(x,mean_holder,label=name,color=color)
+		ax.fill_between(x,mean_holder-std_holder,mean_holder+std_holder,alpha=0.15,color=color)
 	plt.ylim(ymin=0)
 	plt.xlim(xmin=0,xmax=60)
 	plt.ylabel('Distance From Deployment (km)')
