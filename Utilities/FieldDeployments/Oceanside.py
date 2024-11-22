@@ -9,64 +9,53 @@ import cartopy.crs as ccrs
 import numpy as np
 import os
 from GeneralUtilities.Plot.Cartopy.regional_plot import RegionalBase
-from HyperNav.Utilities.Data.WCOFS import WCOFSMonterey
+from HyperNav.Utilities.Data.WCOFS import WCOFSSouthernCaliforniaHistorical
+file_handler = FilePathHandler(ROOT_DIR,'HypernavSoCalFutureDeployment')
 
-file_handler = FilePathHandler(ROOT_DIR,'HypernavMontereyFutureDeployment')
 
-
-class MontereyCartopy(RegionalBase):
-    llcrnrlon=-122.4
-    llcrnrlat=36.6
-    urcrnrlon=-122
-    urcrnrlat=36.8
+class SOCALCartopy(RegionalBase):
+    llcrnrlon=-117.8
+    llcrnrlat=33.1
+    urcrnrlon=-117.45
+    urcrnrlat=33.3
     def __init__(self,*args,**kwargs):
         print('I am plotting Monterey')
         super().__init__(*args,**kwargs)
 
-class WCOFSFutureMonterey(WCOFSMonterey):
-	PlotClass = MontereyCartopy
+
+class WCOFSOPS(WCOFSSouthernCaliforniaHistorical):
+	PlotClass = SOCALCartopy
 	def __init__(self,*args,**kwargs):
 		super().__init__(*args,**kwargs)
 
-
-def monterey_mean_monthly_plot():
-	uv_class = HYCOMFutureMonterey.load(datetime.datetime(2014,1,1),datetime.datetime(2022,1,1))
-	mean_monthly_plot(uv_class,file_handler,month=12)
-
-
-def monterey_quiver_movie():
-	uv_class = WCOFSFutureMonterey.load()
-	mask = [(x>datetime.datetime(2024,4,26,8)) for x in uv_class.time]
-	quiver_movie(uv_class,mask,file_handler)
-
-
-def monterey_shear_movie():
-	uv_class = WCOFSFutureMonterey.load()
-	lat = 36.7
-	lon = -122.13
-	mask = [(x>datetime.datetime(2024,4,26,8)) for x in uv_class.time]
-	shear_movie(uv_class,mask,file_handler,lat,lon)
-
-def monterey_eke():
-	uv_class = WCOFSFutureMonterey.load()
-	eke_plots(uv_class,file_handler)
-
-def monterey_particles_compute():
-	date_start = datetime.datetime(2024,11,6,8)
-	date_end = datetime.datetime(2024,11,8,8)
-	uv_class = WCOFSFutureMonterey.load()
-
+def socal_particles_compute():
+	date_start = datetime.datetime(2024,9,26,10)
+	date_end = datetime.datetime(2024,9,27,10)
+	uv_class = WCOFSOPS.load()
 	start_time = date_start.timestamp()
 	end_time = date_end.timestamp()
 	uv_class.depths[0]=0
 	# uv_class = uv_class.subsample_depth(4,max_depth=-650)
 	# uv_class = uv_class.subsample_time_u_v(3)
-	data,dimensions = uv_class.return_parcels_uv(date_start-datetime.timedelta(hours=2),date_end+datetime.timedelta(hours=2))
-	lat = 36.7
-	lon = -122.13
-	surface_time = 900
+	data,dimensions = uv_class.return_parcels_uv(date_start-datetime.timedelta(hours=48),date_end+datetime.timedelta(hours=18))
+	dimensions['lon'] = dimensions['lon'][::-1]
+	data['V'] = data['V'].filled(fill_value=0)
+	data['V'] = np.nan_to_num(data['V'])
+	data['V'] = data['V'][:,:,:,::-1]
+	data['U'] = data['U'].filled(fill_value=0)
+	data['U'] = np.nan_to_num(data['U'])
+	data['U'] = data['U'][:,:,:,::-1]
+
+	lat = 33.163658
+	assert (lat>min(dimensions['lat']))&(lat<max(dimensions['lat']))
+	lon = -117.559204
+	assert (lon>min(dimensions['lon']))&(lon<max(dimensions['lon']))
+	assert (start_time>min(dimensions['time']))&(start_time<max(dimensions['time']))
+	assert (end_time>min(dimensions['time']))&(end_time<max(dimensions['time']))
+
+	surface_time = 300
 	vertical_speed = 0.076
-	for depth in [50,100,200,300,400,500,600]:
+	for depth in [100,200,300,400,425,500]:
 		argo_cfg = {'lat': lat, 'lon': lon, 'target_lat': np.nan, 'target_lon': np.nan,
 					'time': start_time, 'end_time': end_time, 'depth': 10, 'min_depth': 10, 'drift_depth': abs(depth),
 					'max_depth': abs(depth),
@@ -75,7 +64,7 @@ def monterey_particles_compute():
 					}
 		create_prediction(argo_cfg,data,dimensions,'temp'+str(depth)+'.zarr',n_particles=500)		
 	loc_dict = {}
-	for depth in [50,100,200,300,400,500,600]:
+	for depth in [100,200,300,400,425,500]:
 		nc = ParticleDataset('temp'+str(depth)+'.zarr')
 		dist_loc = []
 		for delta in [datetime.timedelta(days=0,seconds=28800*x) for x in range(4)]:
@@ -85,9 +74,9 @@ def monterey_particles_compute():
 	fig = plt.figure(figsize=(12,12))
 	ax = fig.add_subplot(1,1,1, projection=ccrs.PlateCarree())
 	XX,YY,ax1 = uv_class.plot(ax=ax)
-	ax1.scatter(-122.186,36.712,s=100,label = 'MARS')
+	ax1.scatter([-117.559204,-117.558853,-117.557137,-117.567413],[33.163658,33.163208,33.154465,33.149071],s=100,label = 'actual')
 	ax1.plot(lon,lat)
-	for depth in [50,100,200,300,400,500,600]:
+	for depth in [100,200,300,400,425,500]:
 		lats,lons = zip(*loc_dict[depth])
 		ax1.scatter(lons,lats,label=str(depth)+' m')
 		ax1.scatter(lons[-1],lats[-1],marker='*',color='k')

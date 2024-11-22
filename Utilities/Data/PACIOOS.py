@@ -125,7 +125,7 @@ class KonaPACIOOS(PACIOOS):
 	lllat = 18.5
 	lllon = -159
 	urlon = -154
-	max_depth = -700
+	max_depth = -2500
 	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
 	PlotClass = KonaCartopy
 	ID = 'roms_hiig'

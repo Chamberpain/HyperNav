@@ -43,7 +43,7 @@ class MooringBase():
 	def plot_uv_spectra_compare(self):
 
 		def average_ffts(df,subsample=1):
-			goog_list = parse_df(df,subsample)
+			good_list = parse_df(df,subsample)
 			fft_avg_list = []
 			for temp_df in good_list:
 				X = np.fft.fft(signal.detrend(temp_df.u.tolist()*signal.windows.hann(len(temp_df.u.tolist()))))

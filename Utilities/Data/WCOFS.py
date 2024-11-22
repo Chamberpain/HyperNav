@@ -17,8 +17,9 @@ import gsw
 import matplotlib.pyplot as plt
 from urllib.error import HTTPError
 import os, shutil
-
-
+from netCDF4 import Dataset
+from GeneralUtilities.Data.pickle_utilities import load
+from HyperNav.Utilities.Data.XROM_Utilities import return_dims,dataset_time
 
 
 class WCOFSBase(Base):
@@ -35,20 +36,20 @@ class WCOFSBase(Base):
 		delta = datetime_instance-datetime.datetime(today.year,today.month,today.day)
 		hours_delta = int(delta.days*24+delta.seconds/3600)
 		try:
-			path = today.strftime('https://opendap.co-ops.nos.noaa.gov/thredds/dodsC/NOAA/WCOFS/MODELS/%Y/%m/%d/nos.wcofs.regulargrid.f{0:03d}.%Y%m%d.t03z.nc'.format(hours_delta-3))
+			path = today.strftime('https://opendap.co-ops.nos.noaa.gov/thredds/dodsC/NOAA/WCOFS/MODELS/%Y/%m/%d/wcofs.t03z.%Y%m%d.regulargrid.f{0:03d}.nc'.format(hours_delta-3))
 			dataset = open_url(path)
 		except:
-			path = today.strftime('https://opendap.co-ops.nos.noaa.gov/thredds/dodsC/NOAA/WCOFS/MODELS/%Y/%m/%d/nos.wcofs.regulargrid.n{0:03d}.%Y%m%d.t03z.nc'.format(hours_delta+21))
+			path = today.strftime('https://opendap.co-ops.nos.noaa.gov/thredds/dodsC/NOAA/WCOFS/MODELS/%Y/%m/%d/wcofs.t03z.%Y%m%d.regulargrid.n{0:03d}.nc'.format(hours_delta+21))
 			dataset = open_url(path)			
-		time_since = datetime.datetime.strptime(dataset['ocean_time'].attributes['units'],'seconds since %Y-%m-%d %H:%M:%S')
-		time = UVTimeList.time_list_from_seconds(dataset['ocean_time'][:],time_since)[0]
+		time_since = datetime.datetime.strptime(dataset['time'].attributes['units'],'seconds since %Y-%m-%d %H:%M:%S')
+		time = UVTimeList.time_list_from_seconds(dataset['time'][:],time_since)[0]
 		assert datetime_instance==time
 		return dataset
 
 	@classmethod
 	def get_dimensions(cls,urlon,lllon,urlat,lllat,max_depth,dataset):
-		time_since = datetime.datetime.strptime(dataset['ocean_time'].attributes['units'],'seconds since %Y-%m-%d %H:%M:%S')
-		time_start = UVTimeList.time_list_from_seconds(dataset['ocean_time'][:],time_since)[0]
+		time_since = datetime.datetime.strptime(dataset['time'].attributes['units'],'seconds since %Y-%m-%d %H:%M:%S')
+		time_start = UVTimeList.time_list_from_seconds(dataset['time'][:],time_since)[0]
 		time = [time_start + cls.time_step*x for x in range(len(cls.hours_list))]
 		lats = LatList(flat_list(dataset['Latitude'][:,0].data))
 		lons = LonList(flat_list(dataset['Longitude'][0,:].data))
@@ -130,13 +131,16 @@ class WCOFSSouthernCalifornia(WCOFSBase):
 	urlat = 35
 	lllat = 30
 	lllon = -122
-	urlon = -116
+	urlon = -116.5
 	max_depth = -700
 	PlotClass = CCSCartopy
 	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
 	DepthClass = ETopo1Depth
 	dataset = WCOFSBase.get_dataset(datetime.datetime(datetime.date.today().year,datetime.date.today().month,datetime.date.today().day,0))
 	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,ref_date = WCOFSBase.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
+
+
+
 
 	@classmethod
 	def get_dataset_shape(cls):
@@ -148,6 +152,47 @@ class WCOFSSouthernCalifornia(WCOFSBase):
 		urlon = max(longitude)
 		ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
 		return ocean_shape
+
+
+
+
+class WCOFSSouthernCaliforniaHistorical(WCOFSSouthernCalifornia):
+	#this needs to be hard coded for the historical runs
+	location='SoCal'
+	facecolor = 'Pink'
+	urlat = 33.7
+	lllat = 32.5
+	lllon = -118
+	urlon = -117
+	max_depth = -500
+	PlotClass = CCSCartopy
+	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
+	DepthClass = ETopo1Depth
+	dataset = WCOFSBase.get_dataset(datetime.datetime(datetime.date.today().year,datetime.date.today().month,datetime.date.today().day,0))
+	lats,lons,depths = return_dims()
+	lats = LatList(lats.tolist())
+	lons = LonList(lons.tolist())
+	depths = DepthList(depths.tolist())
+	ref_date = datetime.datetime.strptime(dataset['time'].attributes['units'],'seconds since %Y-%m-%d %H:%M:%S')
+	urlon_idx = lons.find_nearest(urlon,idx=True)
+	lllon_idx = lons.find_nearest(lllon,idx=True)
+	urlat_idx = lats.find_nearest(urlat,idx=True)
+	lllat_idx = lats.find_nearest(lllat,idx=True)
+	units = dataset['u_eastward'].attributes['units']
+	dataset_time = TimeList(dataset_time)
+
+	def __init__(self,*args,**kwargs):
+		super().__init__(*args,**kwargs)
+
+	@classmethod
+	def load(cls):
+		folder_name = cls.file_handler.tmp_file(cls.dataset_description+'_'+cls.location+'_historical_data')
+		u = np.load(os.path.join(folder_name,'u.npy'))
+		v = np.load(os.path.join(folder_name,'v.npy'))
+		out = cls(u=u*cls.scale_factor,v=v*cls.scale_factor,time=TimeList(dataset_time))
+		return out
+
+
 
 class WCOFSMonterey(WCOFSBase):
 	location='Monterey'

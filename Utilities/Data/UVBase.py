@@ -110,9 +110,15 @@ class Base(ABC):
 		self.__class__.depth=depth
 		return self.__class__(u=u,v=v,time=self.time)
 
-	def return_u_v(self,time=None,depth=None):
-		u_holder = self.u[self.time.find_nearest(time,idx=True),self.depths.find_nearest(depth,idx=True),:,:]
-		v_holder = self.v[self.time.find_nearest(time,idx=True),self.depths.find_nearest(depth,idx=True),:,:]
+	def return_u_v(self,time=None,depth=None,point=None):
+		if point:
+			lat_idx = self.lats.find_nearest(point.latitude,idx=True)
+			lon_idx = self.lons.find_nearest(point.longitude,idx=True)
+			u_holder = self.u[self.time.find_nearest(time,idx=True),self.depths.find_nearest(depth,idx=True),lat_idx,lon_idx]
+			v_holder = self.v[self.time.find_nearest(time,idx=True),self.depths.find_nearest(depth,idx=True),lat_idx,lon_idx]
+		else:
+			u_holder = self.u[self.time.find_nearest(time,idx=True),self.depths.find_nearest(depth,idx=True),:,:]
+			v_holder = self.v[self.time.find_nearest(time,idx=True),self.depths.find_nearest(depth,idx=True),:,:]
 		return (u_holder,v_holder)
 
 	def return_monthly_mean(self,month,depth):

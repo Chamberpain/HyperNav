@@ -220,6 +220,9 @@ class ParticleDataset():
 
 def DeleteParticle(particle, fieldset, time):
 	print('A particle is out of bounds, deleting')
+	print(particle)
+	print(time)
+	print(fieldset)
 	particle.delete()
 
 def create_prediction(float_pos_dict,uv,dimensions,filename,n_particles=100,output_time_step=datetime.timedelta(minutes=30),out_of_bounds_recovery=True):

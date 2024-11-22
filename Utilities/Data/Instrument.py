@@ -26,6 +26,7 @@ class FloatBase():
 			 'surface_time': self.surface_time,'total_cycle_time': total_cycle_time,'vertical_speed':vertical_speed,
 			 }
 		return argo_cfg
+
 	def return_float_pos_dict_list(self,ocean_shape):
 		dict_list = []
 		for k in range(len(self.lons)-1):
@@ -46,16 +47,6 @@ class FloatBase():
 				print('point outside domain, advancing')
 		return dict_list
 
-class AOMLFloat(FloatBase):
-	max_depth = -10
-	def __init__(self,argo_float,*args,**kwargs):
-		self.time = TimeList(argo_float.prof.date)
-		lats,lons = zip(*[(x.latitude,x.longitude) for x in argo_float.prof.pos])
-		self.lons = LonList(lons)
-		self.lats = LatList(lats)
-		self.drift_depths = DepthList([-10]*(len(lons)-1))
-		self.surface_time = 300 * 3600
-		super().__init__(*args,**kwargs)
 
 class ArgoFloat(FloatBase):
 	max_depth = -2000
