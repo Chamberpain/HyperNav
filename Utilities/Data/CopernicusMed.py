@@ -17,9 +17,6 @@ import gsw
 import shapely.geometry
 import numpy as np
 
-class CopUVTimeList(UVTimeList):
-	def return_time_list(self):
-		return list(range(len(self))[::3])+[len(self)-1] #-1 because of pythons crazy list indexing
 
 
 

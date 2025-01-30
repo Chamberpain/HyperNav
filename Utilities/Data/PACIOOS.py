@@ -39,21 +39,18 @@ class PACIOOS(Base):
 			if os.path.isfile(k_filename):
 				k +=1
 				continue
-			try:
-				u_holder = cls.dataset['u'][idx_list[k]:idx_list[k+1]
-				,:(len(cls.depths))
-				,cls.lllat_idx:cls.urlat_idx
-				,cls.lllon_idx:cls.urlon_idx]
-				v_holder = cls.dataset['v'][idx_list[k]:idx_list[k+1]
-				,:(len(cls.depths))
-				,cls.lllat_idx:cls.urlat_idx
-				,cls.lllon_idx:cls.urlon_idx]
-				with open(k_filename, 'wb') as f:
-					pickle.dump({'u':u_holder['u'].data,'v':v_holder['v'].data, 'time':u_holder['time'].data},f)
-				k +=1
-			except:
-				print('Index ',k,' encountered an error and did not save. Trying again')
-				continue
+			u_holder = cls.dataset['u'][idx_list[k]:idx_list[k+1]
+			,:(len(cls.depths))
+			,cls.lllat_idx:cls.urlat_idx
+			,cls.lllon_idx:cls.urlon_idx]
+			v_holder = cls.dataset['v'][idx_list[k]:idx_list[k+1]
+			,:(len(cls.depths))
+			,cls.lllat_idx:cls.urlat_idx
+			,cls.lllon_idx:cls.urlon_idx]
+			with open(k_filename, 'wb') as f:
+				pickle.dump({'u':u_holder['u'].data,'v':v_holder['v'].data, 'time':u_holder['time'].data},f)
+			k +=1
+			continue
 
 	@classmethod
 	def get_dataset_shape(cls):
