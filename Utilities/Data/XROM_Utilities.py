@@ -16,10 +16,13 @@ dataset_time = [datetime.datetime(2024,9,23)+datetime.timedelta(hours=x) for x i
 
 """ Have to do this because the packages for geospatial interpolation get confused in conda. Use environment xesmf_env"""
 
-def return_dims():
-	lats = np.linspace(32.5,33.7,200)
-	lons = np.linspace(-117,-118,200)
-	depths = np.linspace(0,-500,50)
+def return_dims(lllon,urlon,lllat,urlat,depth):
+	assert depth<0
+	assert lllat<urlat
+	assert lllon<urlon
+	lats = np.linspace(lllat,urlat,200)
+	lons = np.linspace(urlon,lllat,200)
+	depths = np.linspace(0,depth,50)
 	return (lats,lons,depths)
 
 

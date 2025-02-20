@@ -3,7 +3,7 @@ from GeneralUtilities.Data.Filepath.instance import FilePathHandler
 from HyperNav.Utilities.Data.UVBase import Base,UVTimeList
 from GeneralUtilities.Compute.list import LatList, LonList, DepthList, flat_list
 from urllib.error import HTTPError
-from GeneralUtilities.Plot.Cartopy.regional_plot import KonaCartopy, CanaryCartopy, BermudaCartopy, TahitiCartopy, CCSCartopy
+from GeneralUtilities.Plot.Cartopy.regional_plot import KonaCartopy, CanaryCartopy, BermudaCartopy, TahitiCartopy, CCSCartopy, PuertoRicoCartopy
 from socket import timeout
 import matplotlib.pyplot as plt
 import gsw
@@ -121,6 +121,44 @@ class CopernicusGlobal(Base):
 				print('Index ',k,' encountered an error and did not save. Trying again')
 				continue
 
+	@classmethod
+	def download_recent(cls):
+		idx_list = cls.dataset_time.return_time_list()
+		k = len(idx_list)-10
+		while k < len(idx_list)-1:
+			temp_dataset = cls.get_dataset(cls.urlat,
+				cls.lllat,
+				cls.urlon,
+				cls.lllon,
+				cls.max_depth,
+				cls.ID,
+				cls.dataset_time[idx_list[k]].isoformat(),
+				(cls.dataset_time[idx_list[k+1]]-cls.time_step).isoformat()
+				)
+			print(k)
+			k_filename = cls.file_handler.tmp_file(cls.dataset_description+'_'+cls.location+'_data/'+str(k))
+			print(k_filename)
+			if os.path.isfile(k_filename):
+				k +=1
+				continue
+			try:
+				u_holder = temp_dataset['uo'].data[:
+				,:
+				,:
+				,:]
+				v_holder = temp_dataset['vo'].data[:
+				,:
+				,:
+				,:]
+				with open(k_filename, 'wb') as f:
+					pickle.dump({'u':u_holder,'v':v_holder, 'time':temp_dataset['time'].data.tolist()},f)
+				f.close()
+				k +=1
+			except:
+				print('Index ',k,' encountered an error and did not save. Trying again')
+				continue
+
+
 class SoCalCopernicus(CopernicusGlobal):
 	location='SoCal'
 	facecolor = 'Pink'
@@ -132,6 +170,34 @@ class SoCalCopernicus(CopernicusGlobal):
 	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
 	location = 'SouthernCalifornia'
 	PlotClass = CCSCartopy
+	ID = 'cmems_mod_glo_phy-cur_anfc_0.083deg_PT6H-i'
+	dataset = CopernicusGlobal.get_dataset(urlat,lllat,urlon,lllon,max_depth,ID)
+	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,ref_date = CopernicusGlobal.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
+
+class MontereyCopernicus(CopernicusGlobal):
+	location='Monterey'
+	facecolor = 'Pink'
+	urlat = 39
+	lllat = 34
+	lllon = -126
+	urlon = -121.5
+	max_depth = -700
+	PlotClass = CCSCartopy
+	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
+	ID = 'cmems_mod_glo_phy-cur_anfc_0.083deg_PT6H-i'
+	dataset = CopernicusGlobal.get_dataset(urlat,lllat,urlon,lllon,max_depth,ID)
+	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,ref_date = CopernicusGlobal.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
+
+class PuertoRicoCopernicus(CopernicusGlobal):
+	location = 'PuertoRico'
+	facecolor = 'yellow'
+	urlon = -65
+	lllon = -68.5 
+	urlat = 22.5
+	lllat = 16
+	max_depth = -700
+	PlotClass = PuertoRicoCartopy
+	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
 	ID = 'cmems_mod_glo_phy-cur_anfc_0.083deg_PT6H-i'
 	dataset = CopernicusGlobal.get_dataset(urlat,lllat,urlon,lllon,max_depth,ID)
 	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,ref_date = CopernicusGlobal.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
@@ -165,6 +231,20 @@ class HawaiiCopernicus(CopernicusGlobal):
 	ID = 'cmems_mod_glo_phy-cur_anfc_0.083deg_PT6H-i'
 	dataset = CopernicusGlobal.get_dataset(urlat,lllat,urlon,lllon,max_depth,ID)
 	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,ref_date = CopernicusGlobal.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
+
+class HawaiiOffshoreCopernicus(CopernicusGlobal):
+	urlat = 17.5
+	lllat = 14.5
+	lllon = -158
+	urlon = -154
+	max_depth = 800
+	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
+	location = 'HawaiiOffshore'
+	PlotClass = KonaCartopy
+	ID = 'cmems_mod_glo_phy-cur_anfc_0.083deg_PT6H-i'
+	dataset = CopernicusGlobal.get_dataset(urlat,lllat,urlon,lllon,max_depth,ID)
+	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,ref_date = CopernicusGlobal.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
+
 
 
 class BermudaCopernicus(CopernicusGlobal):

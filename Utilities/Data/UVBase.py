@@ -107,7 +107,7 @@ class Base(ABC):
 			u = u[:,:depth_idx,:,:]
 			v = v[:,:depth_idx,:,:]
 			depth = depth[:depth_idx]
-		self.__class__.depth=depth
+		self.__class__.depths=depth
 		return self.__class__(u=u,v=v,time=self.time)
 
 	def return_u_v(self,time=None,depth=None,point=None):

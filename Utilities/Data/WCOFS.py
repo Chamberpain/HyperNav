@@ -139,9 +139,6 @@ class WCOFSSouthernCalifornia(WCOFSBase):
 	dataset = WCOFSBase.get_dataset(datetime.datetime(datetime.date.today().year,datetime.date.today().month,datetime.date.today().day,0))
 	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,ref_date = WCOFSBase.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
 
-
-
-
 	@classmethod
 	def get_dataset_shape(cls):
 		longitude = cls.dataset['longitude'][:].data
@@ -152,9 +149,6 @@ class WCOFSSouthernCalifornia(WCOFSBase):
 		urlon = max(longitude)
 		ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
 		return ocean_shape
-
-
-
 
 class WCOFSSouthernCaliforniaHistorical(WCOFSSouthernCalifornia):
 	#this needs to be hard coded for the historical runs
@@ -169,7 +163,7 @@ class WCOFSSouthernCaliforniaHistorical(WCOFSSouthernCalifornia):
 	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
 	DepthClass = ETopo1Depth
 	dataset = WCOFSBase.get_dataset(datetime.datetime(datetime.date.today().year,datetime.date.today().month,datetime.date.today().day,0))
-	lats,lons,depths = return_dims()
+	lats,lons,depths = return_dims(lllon,urlon,lllat,urlat,max_depth)
 	lats = LatList(lats.tolist())
 	lons = LonList(lons.tolist())
 	depths = DepthList(depths.tolist())
@@ -221,3 +215,34 @@ class WCOFSMonterey(WCOFSBase):
 		return ocean_shape
 
 
+class WCOFSMontereyHistorical(WCOFSMonterey):
+	urlat = 39
+	lllat = 34
+	lllon = -126
+	urlon = -121.5
+	max_depth = -700
+	#this needs to be hard coded for the historical runs
+	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
+	dataset = WCOFSBase.get_dataset(datetime.datetime(datetime.date.today().year,datetime.date.today().month,datetime.date.today().day,0))
+	lats,lons,depths = return_dims(lllon,urlon,lllat,urlat,max_depth)
+	lats = LatList(lats.tolist())
+	lons = LonList(lons.tolist())
+	depths = DepthList(depths.tolist())
+	ref_date = datetime.datetime.strptime(dataset['time'].attributes['units'],'seconds since %Y-%m-%d %H:%M:%S')
+	urlon_idx = lons.find_nearest(urlon,idx=True)
+	lllon_idx = lons.find_nearest(lllon,idx=True)
+	urlat_idx = lats.find_nearest(urlat,idx=True)
+	lllat_idx = lats.find_nearest(lllat,idx=True)
+	units = dataset['u_eastward'].attributes['units']
+	dataset_time = TimeList(dataset_time)
+
+	def __init__(self,*args,**kwargs):
+		super().__init__(*args,**kwargs)
+
+	@classmethod
+	def load(cls):
+		folder_name = cls.file_handler.tmp_file(cls.dataset_description+'_'+cls.location+'_historical_data')
+		u = np.load(os.path.join(folder_name,'u.npy'))
+		v = np.load(os.path.join(folder_name,'v.npy'))
+		out = cls(u=u*cls.scale_factor,v=v*cls.scale_factor,time=TimeList(dataset_time))
+		return out

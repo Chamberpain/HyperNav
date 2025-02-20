@@ -9,13 +9,14 @@ import cartopy.crs as ccrs
 import numpy as np
 import os
 from GeneralUtilities.Plot.Cartopy.regional_plot import RegionalBase
-from HyperNav.Utilities.Data.CopernicusGlobal import HawaiiCopernicus
-file_handler = FilePathHandler(ROOT_DIR,'HawaiiCopernicus')
+from HyperNav.Utilities.Data.CopernicusGlobal import HawaiiOffshoreCopernicus
+file_handler = FilePathHandler(ROOT_DIR,'HawaiiOffshoreCopernicus')
+
+lat = 16.01
+lon = -155.907776
 
 
 class HawaiiCartopy(RegionalBase):
-	lat = 17.402
-	lon = -155.805
 
 	llcrnrlon=lon-0.3
 	llcrnrlat=lat-0.3
@@ -30,16 +31,15 @@ class HawaiiCartopy(RegionalBase):
 
 def hawaii_particles_compute():
 	date_start = datetime.datetime.today()
-	date_end = datetime.datetime(2024,12,19)
-	uv_class = HawaiiCopernicus.load(date_start,date_end)
+	date_end = datetime.datetime(2025,2,23)
+	uv_class = HawaiiOffshoreCopernicus.load(date_start,date_end)
 	start_time = date_start.timestamp()
 	end_time = date_end.timestamp()
 	uv_class.depths[0]=0
 	# uv_class = uv_class.subsample_depth(4,max_depth=-650)
 	# uv_class = uv_class.subsample_time_u_v(3)
 	data,dimensions = uv_class.return_parcels_uv(date_start-datetime.timedelta(hours=48),date_end+datetime.timedelta(hours=48))
-	lat = 17.402
-	lon = -155.805
+
 	assert (lat>min(dimensions['lat']))&(lat<max(dimensions['lat']))
 	assert (lon>min(dimensions['lon']))&(lon<max(dimensions['lon']))
 	assert (start_time>min(dimensions['time']))&(start_time<max(dimensions['time']))
@@ -65,7 +65,7 @@ def hawaii_particles_compute():
 		loc_dict[depth]=dist_loc
 	uv_class.PlotClass = HawaiiCartopy
 	fig = plt.figure(figsize=(12,12))
-	ax = fig.add_subplot(1,1,1, projection=ccrs.PlateCarree())
+	ax = fig.add_subplot(1,2,1, projection=ccrs.PlateCarree())
 	XX,YY,ax1 = uv_class.plot(ax=ax)
 	for depth in [100,200,300,400,425,500,600,700]:
 		lats,lons = zip(*loc_dict[depth])
@@ -73,3 +73,14 @@ def hawaii_particles_compute():
 		ax1.scatter(lons[-1],lats[-1],marker='*',color='k')
 		ax1.plot(lons,lats)
 	ax1.legend()
+
+	depths = uv_class.depths[:(uv_class.u.shape[1])]
+	u,v = uv_class.vertical_shear(date_start,lat,lon)
+
+	ax2 = fig.add_subplot(1,2,2)
+	ax2.plot(u,depths,label='u')
+	ax2.plot(v,depths,label='v')
+	ax2.set_xlim([-0.55,0.55])
+	ax2.set_xlabel('Current Speed $ms^{-1}$')
+	ax2.set_ylabel('Depth (m)')
+	ax2.legend()

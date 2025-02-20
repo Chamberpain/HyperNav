@@ -1,6 +1,7 @@
 from HyperNav.Utilities.Data.Instrument import FloatBase
 from HyperNav.Utilities.Data.HYCOM import HYCOMPuertoRico,HYCOMMonterey,HYCOMHawaii
 from HyperNav.Utilities.Data.PACIOOS import KonaPACIOOS
+from HyperNav.Utilities.Data.CopernicusGlobal import PuertoRicoCopernicus,HawaiiCopernicus, MontereyCopernicus
 from GeneralUtilities.Compute.list import TimeList, LatList, LonList,DepthList
 from GeneralUtilities.Data.Filepath.instance import get_data_folder 
 import pandas as pd
@@ -18,7 +19,9 @@ UVPR = HYCOMPuertoRico.load(HYCOMPuertoRico.dataset_time[1],HYCOMPuertoRico.data
 UVM = HYCOMMonterey.load(HYCOMMonterey.dataset_time[1],HYCOMMonterey.dataset_time[-2],interpolate=False)
 UVH = HYCOMHawaii.load(HYCOMHawaii.dataset_time[1],HYCOMHawaii.dataset_time[-2],interpolate=False)
 UVHPACIOOS = KonaPACIOOS.load(KonaPACIOOS.dataset_time[1],KonaPACIOOS.dataset_time[-2],interpolate=False)
-
+UVPRCopernicus = PuertoRicoCopernicus.load(PuertoRicoCopernicus.dataset_time[1],PuertoRicoCopernicus.dataset_time[-2],interpolate=False)
+UVMCopernicus = MontereyCopernicus.load(MontereyCopernicus.dataset_time[1],MontereyCopernicus.dataset_time[-2],interpolate=False)
+UVHCopernicus = HawaiiCopernicus.load(HawaiiCopernicus.dataset_time[1],HawaiiCopernicus.dataset_time[-2],interpolate=False)
 
 class AOMLFloat(FloatBase):
 	def __init__(self,df,*args,**kwargs):
@@ -28,8 +31,8 @@ class AOMLFloat(FloatBase):
 		self.ve = df.ve
 		self.vn = df.vn
 		if len(df.ve)>4:
-			self.persistence_ve = self.ve[4:].append(pd.Series([np.nan]*4))
-			self.persistence_vn = self.vn[4:].append(pd.Series([np.nan]*4))
+			self.persistence_ve = pd.concat([self.ve[4:],pd.Series([np.nan]*4)])
+			self.persistence_vn = pd.concat([self.vn[4:],pd.Series([np.nan]*4)])
 		else:
 			self.persistence_ve = pd.Series([np.nan]*len(self.ve))
 			self.persistence_vn = pd.Series([np.nan]*len(self.ve))		
@@ -63,13 +66,26 @@ class HawaiiPACIOOSAOMLFloat(AOMLFloat):
 	UV = UVHPACIOOS
 	shape = shapely.geometry.Polygon([(UV.lllon,UV.urlat),(UV.urlon,UV.urlat),(UV.urlon,UV.lllat),(UV.lllon,UV.lllat)])
 
-class PuertoRicoAOMLFloat(AOMLFloat):
+class PuertoRicoHYCOMAOMLFloat(AOMLFloat):
 	UV = UVPR
 	shape = shapely.geometry.Polygon([(UV.lllon,UV.urlat),(UV.urlon,UV.urlat),(UV.urlon,UV.lllat),(UV.lllon,UV.lllat)])
 
-class MontereyAOMLFloat(AOMLFloat):
+class MontereyHYCOMAOMLFloat(AOMLFloat):
 	UV = UVM
 	shape = shapely.geometry.Polygon([(UV.lllon,UV.urlat),(UV.urlon,UV.urlat),(UV.urlon,UV.lllat),(UV.lllon,UV.lllat)])
+
+class PuertoRicoCopernicusAOMLFloat(AOMLFloat):
+	UV = UVPRCopernicus
+	shape = shapely.geometry.Polygon([(UV.lllon,UV.urlat),(UV.urlon,UV.urlat),(UV.urlon,UV.lllat),(UV.lllon,UV.lllat)])
+
+class MontereyCopernicusAOMLFloat(AOMLFloat):
+	UV = UVMCopernicus
+	shape = shapely.geometry.Polygon([(UV.lllon,UV.urlat),(UV.urlon,UV.urlat),(UV.urlon,UV.lllat),(UV.lllon,UV.lllat)])
+
+class HawaiiCopernicusAOMLFloat(AOMLFloat):
+	UV = UVHCopernicus
+	shape = shapely.geometry.Polygon([(UV.lllon,UV.urlat),(UV.urlon,UV.urlat),(UV.urlon,UV.lllat),(UV.lllon,UV.lllat)])
+
 
 class AOMLFloatsBase():
 	def __init__(self):
@@ -147,23 +163,40 @@ class AOMLFloatsBase():
 
 class HawaiiHYCOMAOMLFloats(AOMLFloatsBase):
 	FloatClass = HawaiiHYCOMAOMLFloat
-	path = os.path.join(get_data_folder(),'Raw/AOML/drifter_6hour_qc_1b1f_1196_ce4a.csv')
+	path = os.path.join(get_data_folder(),'Raw/AOML/drifter_6hour_qc_3843_ec8c_723f.csv')
 
 class HawaiiPACIOOSAOMLFloats(AOMLFloatsBase):
 	FloatClass = HawaiiPACIOOSAOMLFloat
-	path = os.path.join(get_data_folder(),'Raw/AOML/drifter_6hour_qc_1b1f_1196_ce4a.csv')
+	path = os.path.join(get_data_folder(),'Raw/AOML/drifter_6hour_qc_3843_ec8c_723f.csv')
+
+class HawaiiCopernicusAOMLFloats(AOMLFloatsBase):
+	FloatClass = HawaiiCopernicusAOMLFloat
+	path = os.path.join(get_data_folder(),'Raw/AOML/drifter_6hour_qc_3843_ec8c_723f.csv')
+
+
+class PuertoRicoCopernicusAOMLFloats(AOMLFloatsBase):
+	FloatClass = PuertoRicoCopernicusAOMLFloat
+	path = os.path.join(get_data_folder(),'Raw/AOML/drifter_6hour_qc_4ee6_6c66_5c61.csv')
 
 class PuertoRicoHYCOMAOMLFloats(AOMLFloatsBase):
-	FloatClass = PuertoRicoAOMLFloat
-	path = os.path.join(get_data_folder(),'Raw/AOML/drifter_6hour_qc_ea94_baa1_3d5f.csv')
+	FloatClass = PuertoRicoHYCOMAOMLFloat
+	path = os.path.join(get_data_folder(),'Raw/AOML/drifter_6hour_qc_4ee6_6c66_5c61.csv')
+
+class MontereyCopernicusAOMLFloats(AOMLFloatsBase):
+	FloatClass = MontereyCopernicusAOMLFloat
+	path = os.path.join(get_data_folder(),'Raw/AOML/drifter_6hour_qc_2972_81ea_cf4e.csv')
 
 class MontereyHYCOMAOMLFloats(AOMLFloatsBase):
-	FloatClass = MontereyAOMLFloat
-	path = os.path.join(get_data_folder(),'Raw/AOML/drifter_6hour_qc_464b_b0ec_3c5a.csv')
+	FloatClass = MontereyHYCOMAOMLFloat
+	path = os.path.join(get_data_folder(),'Raw/AOML/drifter_6hour_qc_2972_81ea_cf4e.csv')
+
 
 HYCOMPR = PuertoRicoHYCOMAOMLFloats()
 HYCOMMonterey = MontereyHYCOMAOMLFloats()
 HYCOMHawaii = HawaiiHYCOMAOMLFloats()
+CopernicusPR = PuertoRicoCopernicusAOMLFloats()
+CopernicusMonterey = MontereyCopernicusAOMLFloats()
+CopernicusHawaii = HawaiiCopernicusAOMLFloats()
 PACIOOSHawaii = HawaiiPACIOOSAOMLFloats()
 
 def std_cor_calc(obs,sim):
@@ -175,19 +208,27 @@ def std_cor_calc(obs,sim):
 x_pr_obs,y_pr_obs = HYCOMPR.return_observations()
 x_pr_per,y_pr_per = HYCOMPR.return_persistance()
 x_pr_hycom, y_pr_hycom = HYCOMPR.return_simulations()
+x_pr_copernicus, y_pr_copernicus = CopernicusPR.return_simulations()
+
 
 x_m_obs,y_m_obs = HYCOMMonterey.return_observations()
 x_m_per,y_m_per = HYCOMMonterey.return_persistance()
 x_m_hycom, y_m_hycom = HYCOMMonterey.return_simulations()
+x_m_copernicus, y_m_copernicus = CopernicusMonterey.return_simulations()
 
 x_h_obs,y_h_obs = HYCOMHawaii.return_observations()
 x_h_per,y_h_per = HYCOMHawaii.return_persistance()
 x_h_hycom, y_h_hycom = HYCOMHawaii.return_simulations()
+x_h_copernicus, y_h_copernicus = CopernicusHawaii.return_simulations()
 x_h_pacioos, y_h_pacioos = PACIOOSHawaii.return_simulations()
 
 
 data_list = []
-for obs,sim in [(x_pr_obs,x_pr_hycom),(y_pr_obs,y_pr_hycom),(x_m_obs,x_m_hycom),(y_m_obs,y_m_hycom),(x_h_obs,x_h_hycom),(y_h_obs,y_h_hycom),(x_h_obs,x_h_pacioos),(y_h_obs,y_h_pacioos),(x_pr_obs,x_pr_per),(y_pr_obs,y_pr_per),(x_m_obs,x_m_per),(y_m_obs,y_m_per),(x_h_obs,x_h_per),(y_h_obs,y_h_per)]:
+for obs,sim in [(x_pr_obs,x_pr_hycom),(y_pr_obs,y_pr_hycom),(x_m_obs,x_m_hycom),(y_m_obs,y_m_hycom),
+(x_h_obs,x_h_hycom),(y_h_obs,y_h_hycom),(x_h_obs,x_h_pacioos),(y_h_obs,y_h_pacioos),(x_pr_obs,x_pr_per),
+(y_pr_obs,y_pr_per),(x_m_obs,x_m_per),(y_m_obs,y_m_per),(x_h_obs,x_h_per),(y_h_obs,y_h_per),
+(x_pr_obs,x_pr_copernicus),(y_pr_obs,y_pr_copernicus),(x_m_obs,x_m_copernicus),(y_m_obs,y_m_copernicus),
+(x_h_obs,x_h_copernicus),(y_h_obs,y_h_copernicus),]:
 	data_list.append(std_cor_calc(obs,sim))
 
 observations = {
@@ -199,12 +240,30 @@ observations = {
 	'Hawaii Y':{'std':data_list[5][1]}
 }
 predictions = {
-	'Puerto Rico X':{'HYCOM':{'std':data_list[0][2],'corr_coeff':data_list[0][0]},'PACIOOS':{'std':100,'corr_coeff':data_list[6][0]},'Persistance':{'std':data_list[8][2],'corr_coeff':data_list[8][0]}},
-	'Puerto Rico Y':{'HYCOM':{'std':data_list[1][2],'corr_coeff':data_list[1][0]},'PACIOOS':{'std':100,'corr_coeff':data_list[6][0]},'Persistance':{'std':data_list[9][2],'corr_coeff':data_list[9][0]}},
-	'Monterey X':{'HYCOM':{'std':data_list[2][2],'corr_coeff':data_list[2][0]},'PACIOOS':{'std':100,'corr_coeff':data_list[6][0]},'Persistance':{'std':data_list[10][2],'corr_coeff':data_list[10][0]}},
-	'Monterey Y':{'HYCOM':{'std':data_list[3][2],'corr_coeff':data_list[3][0]},'PACIOOS':{'std':100,'corr_coeff':data_list[6][0]},'Persistance':{'std':data_list[11][2],'corr_coeff':data_list[11][0]}},
-	'Hawaii X':{'HYCOM':{'std':data_list[4][2],'corr_coeff':data_list[4][0]},'PACIOOS':{'std':data_list[6][2],'corr_coeff':data_list[6][0]},'Persistance':{'std':data_list[12][2],'corr_coeff':data_list[12][0]}},
-	'Hawaii Y':{'HYCOM':{'std':data_list[5][2],'corr_coeff':data_list[5][0]},'PACIOOS':{'std':data_list[7][2],'corr_coeff':data_list[7][0]},'Persistance':{'std':data_list[13][2],'corr_coeff':data_list[13][0]}}
+	'Puerto Rico X':{'HYCOM':{'std':data_list[0][2],'corr_coeff':data_list[0][0]},
+		'PACIOOS':{'std':100,'corr_coeff':data_list[6][0]},
+		'Persistance':{'std':data_list[8][2],'corr_coeff':data_list[8][0]},
+		'Copernicus':{'std':data_list[14][2],'corr_coeff':data_list[14][0]}},
+	'Puerto Rico Y':{'HYCOM':{'std':data_list[1][2],'corr_coeff':data_list[1][0]},
+		'PACIOOS':{'std':100,'corr_coeff':data_list[6][0]},
+		'Persistance':{'std':data_list[9][2],'corr_coeff':data_list[9][0]},
+		'Copernicus':{'std':data_list[15][2],'corr_coeff':data_list[15][0]}},
+	'Monterey X':{'HYCOM':{'std':data_list[2][2],'corr_coeff':data_list[2][0]},
+		'PACIOOS':{'std':100,'corr_coeff':data_list[6][0]},
+		'Persistance':{'std':data_list[10][2],'corr_coeff':data_list[10][0]},
+		'Copernicus':{'std':data_list[16][2],'corr_coeff':data_list[16][0]}},
+	'Monterey Y':{'HYCOM':{'std':data_list[3][2],'corr_coeff':data_list[3][0]},
+		'PACIOOS':{'std':100,'corr_coeff':data_list[6][0]},
+		'Persistance':{'std':data_list[11][2],'corr_coeff':data_list[11][0]},
+		'Copernicus':{'std':data_list[17][2],'corr_coeff':data_list[17][0]}},
+	'Hawaii X':{'HYCOM':{'std':data_list[4][2],'corr_coeff':data_list[4][0]},
+		'PACIOOS':{'std':data_list[6][2],'corr_coeff':data_list[6][0]},
+		'Persistance':{'std':data_list[12][2],'corr_coeff':data_list[12][0]},
+		'Copernicus':{'std':data_list[18][2],'corr_coeff':data_list[18][0]}},
+	'Hawaii Y':{'HYCOM':{'std':data_list[5][2],'corr_coeff':data_list[5][0]},
+		'PACIOOS':{'std':data_list[7][2],'corr_coeff':data_list[7][0]},
+		'Persistance':{'std':data_list[13][2],'corr_coeff':data_list[13][0]},
+		'Copernicus':{'std':data_list[19][2],'corr_coeff':data_list[19][0]}}
 }
 
 rects = {'Puerto Rico X':321, 'Puerto Rico Y':322, 'Monterey X':323, 'Monterey Y':324, 'Hawaii X':325, 'Hawaii Y':326}
