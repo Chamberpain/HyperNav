@@ -118,7 +118,7 @@ class CopernicusMed(Base):
 		k = 0
 		while k < len(idx_list)-1:
 			print(k)
-			k_filename = cls.file_handler.tmp_file(cls.dataset_description+'_'+cls.location+'_data/'+str(k))
+			k_filename = cls.make_k_filename(k)
 			if os.path.isfile(k_filename):
 				k +=1
 				continue

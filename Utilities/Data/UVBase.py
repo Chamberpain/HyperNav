@@ -64,6 +64,17 @@ class Base(ABC):
 		pass
 
 	@classmethod
+	def make_k_filename(cls,k):
+		return cls.file_handler.tmp_file(cls.dataset_description+'_'+cls.location+'_data/'+str(k))
+
+	@classmethod
+	def delete_latest(cls):
+		filename_list = os.listdir(os.path.dirname(cls.make_k_filename(1)))
+		filename_list.remove('.DS_Store')
+		last_k = sorted([int(dummy) for dummy in filename_list])[-1]
+		os.remove(cls.make_k_filename(last_k))
+
+	@classmethod
 	def calculate_divergence(cls,u,v):
 		XX,YY = np.meshgrid(cls.lons,cls.lats)
 		dx = np.gradient(XX)[1]*degree_dist*1000
@@ -170,7 +181,7 @@ class Base(ABC):
 		time_list = []
 		for k in time_idx_list[:-1]:
 			print(k)
-			k_filename = cls.file_handler.tmp_file(cls.dataset_description+'_'+cls.location+'_data/'+str(k))
+			k_filename = cls.make_k_filename(k)
 			try:
 				with open(k_filename, 'rb') as f:
 					uv_dict = pickle.load(f)

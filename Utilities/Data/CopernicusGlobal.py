@@ -99,7 +99,7 @@ class CopernicusGlobal(Base):
 				(cls.dataset_time[idx_list[k+1]]-cls.time_step).isoformat()
 				)
 			print(k)
-			k_filename = cls.file_handler.tmp_file(cls.dataset_description+'_'+cls.location+'_data/'+str(k))
+			k_filename = cls.make_k_filename(k)
 			print(k_filename)
 			if os.path.isfile(k_filename):
 				k +=1
@@ -123,6 +123,7 @@ class CopernicusGlobal(Base):
 
 	@classmethod
 	def download_recent(cls):
+		cls.delete_latest()
 		idx_list = cls.dataset_time.return_time_list()
 		k = len(idx_list)-10
 		while k < len(idx_list)-1:
@@ -136,7 +137,7 @@ class CopernicusGlobal(Base):
 				(cls.dataset_time[idx_list[k+1]]-cls.time_step).isoformat()
 				)
 			print(k)
-			k_filename = cls.file_handler.tmp_file(cls.dataset_description+'_'+cls.location+'_data/'+str(k))
+			k_filename = cls.make_k_filename(k)
 			print(k_filename)
 			if os.path.isfile(k_filename):
 				k +=1
@@ -201,8 +202,6 @@ class PuertoRicoCopernicus(CopernicusGlobal):
 	ID = 'cmems_mod_glo_phy-cur_anfc_0.083deg_PT6H-i'
 	dataset = CopernicusGlobal.get_dataset(urlat,lllat,urlon,lllon,max_depth,ID)
 	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,ref_date = CopernicusGlobal.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
-
-
 
 class TahitiCopernicus(CopernicusGlobal):
 	urlat = -15

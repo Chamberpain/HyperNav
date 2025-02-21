@@ -80,7 +80,7 @@ class WCOFSBase(Base):
 
 		for time in cls.dataset_time:
 			dataset = cls.get_dataset(time)
-			k_filename = cls.file_handler.tmp_file(cls.dataset_description+'_'+cls.location+'_data/'+str(time))
+			k_filename = cls.file_handler.tmp_file(cls.make_k_filename(time))
 			folder = os.path.dirname(k_filename)
 			if not os.path.exists(folder):
 			    os.makedirs(folder)
@@ -103,7 +103,7 @@ class WCOFSBase(Base):
 		v_list = []
 		time_list = []
 		for time in cls.dataset_time:
-			k_filename = cls.file_handler.tmp_file(cls.dataset_description+'_'+cls.location+'_data/'+str(time))
+			k_filename = cls.make_k_filename(time)
 			try:
 				with open(k_filename, 'rb') as f:
 					uv_dict = pickle.load(f)

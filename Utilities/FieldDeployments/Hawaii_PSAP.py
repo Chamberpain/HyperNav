@@ -10,14 +10,19 @@ import numpy as np
 import os
 from GeneralUtilities.Plot.Cartopy.regional_plot import RegionalBase
 from HyperNav.Utilities.Data.CopernicusGlobal import HawaiiOffshoreCopernicus
+import urllib.request
+import pandas as pd
+
 file_handler = FilePathHandler(ROOT_DIR,'HawaiiOffshoreCopernicus')
 
-lat = 16.01
-lon = -155.907776
+def get_latest_location():
+	url = 'https://seatrec-public-files.sfo3.cdn.digitaloceanspaces.com/Seatrec_iF00002.csv'
+	df = pd.read_csv(url)
+	return(df.tail(1)['lat'].values[0],df.tail(1)['lon'].values[0])
 
+lat,lon = get_latest_location()
 
 class HawaiiCartopy(RegionalBase):
-
 	llcrnrlon=lon-0.3
 	llcrnrlat=lat-0.3
 	urcrnrlon=lon+0.3
@@ -31,7 +36,7 @@ class HawaiiCartopy(RegionalBase):
 
 def hawaii_particles_compute():
 	date_start = datetime.datetime.today()
-	date_end = datetime.datetime(2025,2,23)
+	date_end = datetime.datetime.today()+datetime.timedelta(days=2)
 	uv_class = HawaiiOffshoreCopernicus.load(date_start,date_end)
 	start_time = date_start.timestamp()
 	end_time = date_end.timestamp()
@@ -84,3 +89,9 @@ def hawaii_particles_compute():
 	ax2.set_xlabel('Current Speed $ms^{-1}$')
 	ax2.set_ylabel('Depth (m)')
 	ax2.legend()
+	plt.savefig(str(datetime.date.today()))
+	plt.close()
+
+HawaiiOffshoreCopernicus.delete_latest()
+HawaiiOffshoreCopernicus.download_recent()
+hawaii_particles_compute()
