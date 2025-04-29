@@ -1,0 +1,10 @@
+name: HyperNav
+channels:
+  - defaults
+dependencies:
+  - numpy
+  - pydap
+  - parcels
+  - geopy
+  - plotly
+prefix: /Users/xinghangli/anaconda3/envs/HyperNav
