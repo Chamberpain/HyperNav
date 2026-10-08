@@ -1,5 +1,6 @@
+from GeneralUtilities.Data.Download.legacy_model_download import download_legacy_chunks, open_legacy_copernicus_dataset
 from HyperNav.Utilities.Data.__init__ import ROOT_DIR
-from GeneralUtilities.Data.Filepath.instance import FilePathHandler
+from GeneralUtilities.Data.Download.download_paths import LazyDownloadPaths
 from HyperNav.Utilities.Data.UVBase import Base,UVTimeList
 from GeneralUtilities.Compute.list import LatList, LonList, DepthList, flat_list
 from urllib.error import HTTPError
@@ -27,7 +28,7 @@ class CopernicusMed(Base):
 	time_step = datetime.timedelta(hours=1)
 	hours_list = np.arange(0,25,1).tolist()
 	DepthClass = ETopo1Depth
-	file_handler = FilePathHandler(ROOT_DIR,'Copernicus')
+	file_handler = LazyDownloadPaths(ROOT_DIR,'Copernicus')
 	time_method = CopUVTimeList.time_list_from_minutes
 	ID = 'med-cmcc-cur-an-fc-h'
 
@@ -39,10 +40,7 @@ class CopernicusMed(Base):
 		username = 'pchamberlain'
 		password = 'xixhyg-hebju7-jeBmaf'
 		cas_url = 'https://cmems-cas.cls.fr/cas/login'
-		session = setup_session(cas_url, username, password)
-		session.cookies.set("CASTGC", session.cookies.get_dict()['CASTGC'])
-		url = cls.base_html+ID
-		return open_url(url, session=session)
+		return open_legacy_copernicus_dataset(cls.base_html, ID, username=username, password=password, cas_url=cas_url, opener=open_url, session_factory=setup_session)
 
 
 	@classmethod
@@ -88,7 +86,7 @@ class CopernicusMed(Base):
 		urlat = max(cls.dataset['lat'][:])
 		lllon = min(cls.dataset['lon'][:])
 		urlon = max(cls.dataset['lon'][:])
-		ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
+		ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])
 		return ocean_shape
 
 	@classmethod
@@ -114,30 +112,7 @@ class CopernicusMed(Base):
 
 	@classmethod
 	def download_and_save(cls):
-		idx_list = cls.dataset_time.return_time_list()
-		k = 0
-		while k < len(idx_list)-1:
-			print(k)
-			k_filename = cls.make_k_filename(k)
-			if os.path.isfile(k_filename):
-				k +=1
-				continue
-			try:
-				u_holder = cls.dataset['uo'].data[0][idx_list[k]:idx_list[k+1]
-				,:(len(cls.depths))
-				,cls.lllat_idx:cls.urlat_idx
-				,cls.lllon_idx:cls.urlon_idx]
-				v_holder = cls.dataset['vo'].data[0][idx_list[k]:idx_list[k+1]
-				,:(len(cls.depths))
-				,cls.lllat_idx:cls.urlat_idx
-				,cls.lllon_idx:cls.urlon_idx]
-				with open(k_filename, 'wb') as f:
-					pickle.dump({'u':u_holder,'v':v_holder, 'time':cls.dataset['time'].data[idx_list[k]:idx_list[k+1]].tolist()},f)
-				k +=1
-			except:
-				print('Index ',k,' encountered an error and did not save. Trying again')
-				cls.dataset = CopernicusMed.get_dataset()
-				continue
+		return download_legacy_chunks(cls, u_name="uo", v_name="vo", direct_data=True, time_as_list=True, reopen=lambda: CopernicusMed.get_dataset(), print_index=True, create_parent=False)
 
 class CreteCopernicus(CopernicusMed):
 	urlat = 38
@@ -145,9 +120,8 @@ class CreteCopernicus(CopernicusMed):
 	lllon = 22.5
 	urlon = 28.5
 	max_depth = -700
-	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
+	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])
 	location = 'Crete'
 	PlotClass = CreteCartopy
 	dataset = CopernicusMed.get_dataset()
 	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,ref_date = CopernicusMed.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
-

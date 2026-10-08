@@ -1,3 +1,4 @@
+from GeneralUtilities.Data.Download.legacy_model_download import download_legacy_chunks, open_legacy_dataset
 import datetime
 import numpy as np
 from GeneralUtilities.Compute.list import LatList, LonList, DepthList, flat_list
@@ -7,7 +8,7 @@ from GeneralUtilities.Plot.Cartopy.eulerian_plot import HypernavCartopy
 import matplotlib.pyplot as plt
 from netCDF4 import Dataset
 from HyperNav.Utilities.Data.__init__ import ROOT_DIR
-from GeneralUtilities.Data.Filepath.instance import FilePathHandler
+from GeneralUtilities.Data.Download.download_paths import LazyDownloadPaths
 import os
 import requests
 from pydap.client import open_url
@@ -19,7 +20,7 @@ class PACIOOS(Base):
 	dataset_description = 'PACIOOS'
 	base_html = 'https://pae-paha.pacioos.hawaii.edu/erddap/griddap/'
 	DepthClass = PACIOOS
-	file_handler = FilePathHandler(ROOT_DIR,'PACIOOS')
+	file_handler = LazyDownloadPaths(ROOT_DIR,'PACIOOS')
 	hours_list = np.arange(0,25,3).tolist()
 	time_step = datetime.timedelta(hours=3)
 	facecolor = 'green'
@@ -31,26 +32,7 @@ class PACIOOS(Base):
 
 	@classmethod
 	def download_and_save(cls):
-		idx_list = cls.dataset_time.return_time_list()
-		k = 0
-		while k < len(idx_list)-1:
-			print(k)
-			k_filename = cls.make_k_filename(k)
-			if os.path.isfile(k_filename):
-				k +=1
-				continue
-			u_holder = cls.dataset['u'][idx_list[k]:idx_list[k+1]
-			,:(len(cls.depths))
-			,cls.lllat_idx:cls.urlat_idx
-			,cls.lllon_idx:cls.urlon_idx]
-			v_holder = cls.dataset['v'][idx_list[k]:idx_list[k+1]
-			,:(len(cls.depths))
-			,cls.lllat_idx:cls.urlat_idx
-			,cls.lllon_idx:cls.urlon_idx]
-			with open(k_filename, 'wb') as f:
-				pickle.dump({'u':u_holder['u'].data,'v':v_holder['v'].data, 'time':u_holder['time'].data},f)
-			k +=1
-			continue
+		return download_legacy_chunks(cls, u_name="u", v_name="v", print_index=True, create_parent=False)
 
 	@classmethod
 	def get_dataset_shape(cls):
@@ -58,7 +40,7 @@ class PACIOOS(Base):
 		urlat = max(cls.dataset['latitude'][:])
 		lllon = min(cls.dataset['longitude'][:])
 		urlon = max(cls.dataset['longitude'][:])
-		ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
+		ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])
 		return ocean_shape
 
 	@classmethod
@@ -81,7 +63,7 @@ class PACIOOS(Base):
 
 	@classmethod
 	def get_dataset(cls,ID):
-		return open_url(cls.base_html+ID)
+		return open_legacy_dataset(cls.base_html, ID, opener=open_url)
 
 	def ReturnPACIOOSWaves(self):
 		ID = 'ww3_hawaii'
@@ -123,10 +105,8 @@ class KonaPACIOOS(PACIOOS):
 	lllon = -159
 	urlon = -154
 	max_depth = -2500
-	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])	
+	ocean_shape = shapely.geometry.MultiPolygon([shapely.geometry.Polygon([[lllon, urlat], [urlon, urlat], [urlon, lllat], [lllon, lllat], [lllon, urlat]])])
 	PlotClass = KonaCartopy
 	ID = 'roms_hiig'
 	dataset = PACIOOS.get_dataset(ID)
 	dataset_time,lats,lons,depths,lllon_idx,urlon_idx,lllat_idx,urlat_idx,units,ref_date = PACIOOS.get_dimensions(urlon,lllon,urlat,lllat,max_depth,dataset)
-
-
